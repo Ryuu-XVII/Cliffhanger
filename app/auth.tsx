@@ -13,7 +13,7 @@ import {
   signInWithGoogle,
   signUpWithEmail,
 } from '@/data/auth';
-import { isFirebaseConfigured } from '@/data/firebase';
+import { supabaseConfigured } from '@/data/supabase';
 import { toast } from '@/stores/toastStore';
 import { hairline, radii, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -42,14 +42,14 @@ export default function AuthScreen() {
     void isAppleAvailable().then(setAppleReady);
   }, []);
 
-  if (!isFirebaseConfigured()) {
+  if (!supabaseConfigured) {
     return (
       <Screen>
         <View style={{ paddingTop: insets.top + spacing.xl }}>
           <EmptyState
             icon="cloud-offline-outline"
             title="Accounts are not set up yet"
-            message="Add your Firebase keys to .env and restart. Until then your library works fine on this device."
+            message="Add your Supabase keys to .env and restart. Until then your library works fine on this device."
             actionLabel="Back"
             onAction={() => router.back()}
           />

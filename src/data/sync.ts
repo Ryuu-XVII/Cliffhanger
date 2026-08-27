@@ -48,6 +48,12 @@ async function run(uid: string): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, failed: 0, conflicts: [], skipped: null };
   const hadPendingSettings = readQueue(uid).some((op) => op.type === 'settings.update');
 
+  // Guest libraries stay local until Supabase returns a real account id.
+  if (uid.startsWith('local-')) {
+    result.skipped = 'no-remote';
+    return result;
+  }
+
   if (!remote.remoteAvailable()) {
     result.skipped = 'no-remote';
     return result;

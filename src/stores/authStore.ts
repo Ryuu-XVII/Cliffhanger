@@ -1,10 +1,10 @@
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import type { User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
 import { setAniListToken } from '@/api/anilist';
 import { readJson, writeJson } from '@/api/kv';
 import { clearAniListToken, readAniListToken } from '@/data/auth';
-import { firebaseAuth, isFirebaseConfigured } from '@/data/firebase';
+import { supabase, supabaseConfigured } from '@/data/supabase';
 import { localStore } from '@/data/localStore';
 import type { LinkedAccounts } from '@/data/models';
 import { useLibraryStore } from './libraryStore';
@@ -63,23 +63,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // respect the account preferences from the first request onward.
     void readAniListToken().then((token) => setAniListToken(token));
 
-    if (!isFirebaseConfigured()) {
+    if (!supabaseConfigured) {
       const uid = localUid();
       adoptSession(uid);
       set({ ready: true, uid, user: null, isAnonymous: true });
       return () => undefined;
     }
 
-    const auth = firebaseAuth();
-    if (!auth) {
-      const uid = localUid();
-      adoptSession(uid);
-      set({ ready: true, uid, isAnonymous: true });
-      return () => undefined;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      const uid = user?.uid ?? localUid();
+    const applySession = (user: User | null) => {
+      const uid = user?.id ?? localUid();
       const previousUid = get().uid;
 
       if (previousUid && previousUid !== uid) {
@@ -102,13 +94,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         ready: true,
         user,
         uid,
-        isAnonymous: user ? user.isAnonymous : true,
+        isAnonymous: !user || Boolean(user.is_anonymous),
       });
 
       if (user) void useLibraryStore.getState().sync();
-    });
-
-    return unsubscribe;
+    };
+    void supabase.auth.getUser().then(({ data }) => applySession(data.user));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => applySession(session?.user ?? null));
+    return () => listener.subscription.unsubscribe();
   },
 
   setLinked: (patch) => {

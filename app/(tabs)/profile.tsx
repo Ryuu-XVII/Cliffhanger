@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
 
-import { isFirebaseConfigured } from '@/data/firebase';
+import { supabaseConfigured } from '@/data/supabase';
 import { computeStats } from '@/features/stats/compute';
 import { useAuthStore } from '@/stores/authStore';
 import { useLibraryStore } from '@/stores/libraryStore';
@@ -34,7 +34,7 @@ export default function ProfileScreen() {
 
   const stats = useMemo(() => computeStats(Object.values(entries)), [entries]);
 
-  const displayName = user?.displayName ?? (isAnonymous ? 'Guest' : (user?.email ?? 'You'));
+  const displayName = user?.user_metadata?.display_name ?? (isAnonymous ? 'Guest' : (user?.email ?? 'You'));
 
   return (
     <Screen>
@@ -71,9 +71,9 @@ export default function ProfileScreen() {
               </Text>
               <Text variant="labelSm" colour="onSurfaceVariant">
                 {isAnonymous
-                  ? isFirebaseConfigured()
+                  ? supabaseConfigured
                     ? 'Local library, not synced'
-                    : 'Local library. Add Firebase config to sync.'
+                    : 'Local library. Add Supabase config to sync.'
                   : lastSyncedAt
                     ? 'Synced ' + relativeTime(lastSyncedAt)
                     : 'Not synced yet'}

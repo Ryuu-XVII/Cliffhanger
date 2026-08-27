@@ -1,6 +1,5 @@
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { httpsCallable } from 'firebase/functions';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
@@ -11,7 +10,7 @@ import { useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { isWithinQuietHours } from '@/utils/time';
 import { palette } from '@/theme/tokens';
-import { firebaseFunctions } from '@/data/firebase';
+import { supabase } from '@/data/supabase';
 
 /**
  * F-13 airing notifications.
@@ -95,14 +94,15 @@ export async function registerPushToken(): Promise<string | null> {
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
     const token = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     writeJson(TOKEN_KEY, token.data);
-    const functions = firebaseFunctions();
-    if (functions) {
-      const registerDevice = httpsCallable(functions, 'registerDevice');
-      await registerDevice({
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData.user) {
+      const { error } = await supabase.from('devices').upsert({
+        user_id: userData.user.id,
         token: token.data,
         platform: Platform.OS,
-        timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
-      });
+        timezone_offset_minutes: -new Date().getTimezoneOffset(),
+      }, { onConflict: 'user_id,token' });
+      if (error) throw error;
     }
     return token.data;
   } catch {

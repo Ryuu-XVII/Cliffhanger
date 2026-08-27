@@ -5,7 +5,7 @@ import { Alert, ScrollView, View } from 'react-native';
 import { setAniListToken } from '@/api/anilist';
 import { getViewer } from '@/api/anilist';
 import { clearAniListToken, deleteAccount, isAniListConfigured, linkAniList, signOutUser } from '@/data/auth';
-import { isFirebaseConfigured } from '@/data/firebase';
+import { supabaseConfigured } from '@/data/supabase';
 import { deleteAllUserData, remoteAvailable } from '@/data/remote';
 import { localStore } from '@/data/localStore';
 import { clearQueue } from '@/data/syncQueue';
@@ -96,9 +96,9 @@ export default function AccountSettingsScreen() {
       await clearAniListToken();
       setAniListToken(null);
 
-      if (isFirebaseConfigured()) {
+      if (supabaseConfigured) {
         await deleteAccount().catch(() => {
-          // Firebase requires a recent login before deleting the auth record.
+          // Supabase may require a recent session before deleting the account.
           toast.error('Sign in again, then delete. Your data has already been removed.');
         });
       }
@@ -126,14 +126,14 @@ export default function AccountSettingsScreen() {
           }}
         >
           <Text variant="bodyMd">
-            {isAnonymous ? 'Signed in as a guest' : (user?.email ?? user?.displayName ?? 'Signed in')}
+            {isAnonymous ? 'Signed in as a guest' : (user?.email ?? user?.user_metadata?.display_name ?? 'Signed in')}
           </Text>
           <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginTop: 4 }}>
-            {isFirebaseConfigured()
+            {supabaseConfigured
               ? isAnonymous
                 ? 'Your library lives on this device only.'
                 : 'Your library syncs across your devices.'
-              : 'Firebase is not configured, so everything stays on this device.'}
+              : 'Supabase is not configured, so everything stays on this device.'}
           </Text>
 
           {isAnonymous ? (

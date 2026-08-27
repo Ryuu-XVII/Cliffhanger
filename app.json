@@ -23,7 +23,6 @@
           "remote-notification"
         ]
       },
-      "googleServicesFile": "./firebase/GoogleService-Info.plist"
     },
     "android": {
       "package": "com.adnaan.cliffhanger",
@@ -39,7 +38,6 @@
         "SCHEDULE_EXACT_ALARM",
         "POST_NOTIFICATIONS"
       ],
-      "googleServicesFile": "./firebase/google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png",
