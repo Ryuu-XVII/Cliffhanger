@@ -50,6 +50,11 @@ function readLinked(): LinkedAccounts {
   return readJson<LinkedAccounts>(LINKED_KEY) ?? { anilist: null, mal: null };
 }
 
+/** The name shown in headers and the profile screen - never call this before `ready`. */
+export function displayName(state: Pick<AuthState, 'user' | 'isAnonymous'>): string {
+  return state.user?.user_metadata?.display_name ?? (state.isAnonymous ? 'Guest' : (state.user?.email ?? 'You'));
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   ready: false,
   user: null,

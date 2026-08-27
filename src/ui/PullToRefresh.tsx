@@ -97,6 +97,17 @@ export function PullToRefresh({
     () =>
       Gesture.Pan()
         .enabled(enabled)
+        // Require a clear, mostly-vertical downward drag before the gesture
+        // activates at all. Without this it competes with every tap and
+        // every horizontal rail scroll from the moment a finger touches down,
+        // and gesture-handler's native arbitration can be left waiting on
+        // that resolution indefinitely - which is what an unresolved
+        // `simultaneousWithExternalGesture` link produced here before: input
+        // dispatch timing out with the JS thread never even entering the
+        // picture. Explicit offsets let the pan gesture fail fast instead.
+        .activeOffsetY(12)
+        .failOffsetY(-12)
+        .failOffsetX([-10, 10])
         .onUpdate((event) => {
           if (scrollY.value > 1 || event.translationY <= 0) return;
           // Rubber band: resistance grows as the pull extends.
@@ -109,11 +120,8 @@ export function PullToRefresh({
           } else {
             pull.value = withSpring(0, spring.gentle);
           }
-        })
-        // The animated ref is a scroll node, which the gesture API accepts at
-        // runtime but does not model in its ref union.
-        .simultaneousWithExternalGesture(scrollRef as never),
-    [enabled, pull, scrollY, scrollRef, fireRefresh],
+        }),
+    [enabled, pull, scrollY, fireRefresh],
   );
 
   const contentStyle = useAnimatedStyle(() => ({

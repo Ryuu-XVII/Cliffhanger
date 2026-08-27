@@ -14,6 +14,7 @@ import {
   useLibraryViewStore,
   type SortKey,
 } from '@/features/library/hooks/useLibraryView';
+import { displayName, useAuthStore } from '@/stores/authStore';
 import { countByStatus, useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { hairline, radii, spacing } from '@/theme/tokens';
@@ -35,6 +36,8 @@ export default function LibraryScreen() {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const clearance = useTabBarClearance();
+
+  const name = useAuthStore(displayName);
 
   // Select the stable entries map, then derive - see countByStatus.
   const allEntriesMap = useLibraryStore((state) => state.entries);
@@ -91,7 +94,7 @@ export default function LibraryScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title="Library" onAvatarPress={() => router.push('/(tabs)/profile')} />
+      <ScreenHeader title="Library" onAvatarPress={() => router.push('/(tabs)/profile')} avatarLabel={name} />
 
       <SegmentedTabs<ListStatus>
         options={STATUS_ORDER.map((status) => ({

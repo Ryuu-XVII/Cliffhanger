@@ -10,6 +10,8 @@ import {
   MEDIA_LIST_COLLECTION_QUERY,
   SAVE_MEDIA_LIST_ENTRY_MUTATION,
   SEARCH_QUERY,
+  STUDIO_MEDIA_QUERY,
+  STUDIO_SEARCH_QUERY,
   TAGS_QUERY,
   VIEWER_QUERY,
 } from './queries';
@@ -20,6 +22,7 @@ import type {
   AniListMediaTag,
   AniListMediaListEntry,
   AniListPage,
+  AniListPageInfo,
   AniListSeason,
   AniListViewer,
 } from './types';
@@ -34,8 +37,9 @@ export interface SearchParams {
   page?: number;
   type?: 'ANIME' | 'MANGA';
   format?: string;
-  genre?: string;
-  tag?: string;
+  genre?: string[];
+  tag?: string[];
+  season?: AniListSeason;
   seasonYear?: number;
   status?: string;
   sort?: string[];
@@ -65,6 +69,7 @@ export async function searchMedia(params: SearchParams): Promise<Paged<AniListMe
     format,
     genre,
     tag,
+    season,
     seasonYear,
     status,
     sort = ['SEARCH_MATCH', 'POPULARITY_DESC'],
@@ -72,7 +77,9 @@ export async function searchMedia(params: SearchParams): Promise<Paged<AniListMe
   } = params;
 
   const trimmed = query.trim();
-  const hasFilter = Boolean(format || genre || tag || seasonYear || status);
+  const hasFilter = Boolean(
+    format || (genre && genre.length > 0) || (tag && tag.length > 0) || season || seasonYear || status,
+  );
   if (trimmed.length === 0 && !hasFilter) return { items: [], hasNextPage: false, page: pageNumber };
 
   const key = [
@@ -81,8 +88,9 @@ export async function searchMedia(params: SearchParams): Promise<Paged<AniListMe
     trimmed.toLowerCase(),
     pageNumber,
     format ?? '',
-    genre ?? '',
-    tag ?? '',
+    (genre ?? []).join('|'),
+    (tag ?? []).join('|'),
+    season ?? '',
     seasonYear ?? '',
     status ?? '',
     sort.join(','),
@@ -97,8 +105,9 @@ export async function searchMedia(params: SearchParams): Promise<Paged<AniListMe
       type,
       isAdult: includeAdult ? undefined : false,
       format: format ?? undefined,
-      genre: genre ?? undefined,
-      tag: tag ?? undefined,
+      genre_in: genre && genre.length > 0 ? genre : undefined,
+      tag_in: tag && tag.length > 0 ? tag : undefined,
+      season: season ?? undefined,
       seasonYear: seasonYear ?? undefined,
       status: status ?? undefined,
       sort,
@@ -183,6 +192,58 @@ export async function browse(params: BrowseParams): Promise<Paged<AniListMediaLi
     const result = page(data.Page, pageNumber);
     for (const item of result.items) primeMediaLite(item);
     return result;
+  });
+}
+
+export interface AniListStudio {
+  id: number;
+  name: string;
+}
+
+/** Typeahead for the search screen's studio filter. */
+export async function searchStudios(query: string): Promise<AniListStudio[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const key = 'anilist:studio-search:' + trimmed.toLowerCase();
+  return withCache(key, TTL.browse, async () => {
+    const data = await anilistRequest<{ Page: { studios: AniListStudio[] | null } | null }>(
+      STUDIO_SEARCH_QUERY,
+      { search: trimmed, page: 1, perPage: 8 },
+    );
+    return data.Page?.studios?.filter((studio): studio is AniListStudio => studio !== null) ?? [];
+  });
+}
+
+/**
+ * A studio's catalogue. AniList has no studio filter on the Media root query
+ * (confirmed via schema introspection), so this walks Studio.media instead -
+ * a separate connection that only supports sort, not genre/tag/status/year.
+ */
+export async function getStudioMedia(
+  studioId: number,
+  pageNumber = 1,
+  sort: string[] = ['POPULARITY_DESC'],
+  includeAdult = false,
+): Promise<Paged<AniListMediaLite> & { studioName: string }> {
+  const key = ['anilist:studio-media', studioId, pageNumber, sort.join(',')].join(':');
+
+  return withCache(key, TTL.browse, async () => {
+    const data = await anilistRequest<{
+      Studio: { name: string; media: { pageInfo: AniListPageInfo | null; nodes: (AniListMediaLite | null)[] } } | null;
+    }>(STUDIO_MEDIA_QUERY, { id: studioId, page: pageNumber, perPage: PER_PAGE, sort });
+
+    const nodes = (data.Studio?.media.nodes ?? []).filter(
+      (item): item is AniListMediaLite => item !== null && (includeAdult || !item.isAdult),
+    );
+    for (const item of nodes) primeMediaLite(item);
+
+    return {
+      items: nodes,
+      hasNextPage: data.Studio?.media.pageInfo?.hasNextPage ?? false,
+      page: pageNumber,
+      studioName: data.Studio?.name ?? '',
+    };
   });
 }
 

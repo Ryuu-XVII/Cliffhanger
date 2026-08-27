@@ -22,7 +22,7 @@
         "UIBackgroundModes": [
           "remote-notification"
         ]
-      },
+      }
     },
     "android": {
       "package": "com.adnaan.cliffhanger",
@@ -37,7 +37,7 @@
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM",
         "POST_NOTIFICATIONS"
-      ],
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

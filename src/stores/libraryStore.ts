@@ -371,22 +371,9 @@ export function unitNoun(entry: LibraryEntry, plural = false): string {
 
 /* ----------------------------- selectors ----------------------------- */
 
-/** Same warning as countByStatus: derive with useMemo, never select directly. */
-export function allEntries(entries: Record<string, LibraryEntry>): LibraryEntry[] {
-  return Object.values(entries);
-}
-
 export function selectEntry(anilistId: number | null) {
   return (state: { entries: Record<string, LibraryEntry> }): LibraryEntry | null =>
     anilistId === null ? null : (state.entries[String(anilistId)] ?? null);
-}
-
-/** Same warning as countByStatus: derive with useMemo, never select directly. */
-export function entriesByStatus(
-  entries: Record<string, LibraryEntry>,
-  status: ListStatus,
-): LibraryEntry[] {
-  return Object.values(entries).filter((entry) => entry.status === status);
 }
 
 /**

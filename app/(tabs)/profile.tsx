@@ -4,7 +4,7 @@ import { ScrollView, View } from 'react-native';
 
 import { supabaseConfigured } from '@/data/supabase';
 import { computeStats } from '@/features/stats/compute';
-import { useAuthStore } from '@/stores/authStore';
+import { displayName, useAuthStore } from '@/stores/authStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { radii, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -24,17 +24,15 @@ export default function ProfileScreen() {
   const { colors } = useTheme();
   const clearance = useTabBarClearance();
 
-  const user = useAuthStore((state) => state.user);
   const isAnonymous = useAuthStore((state) => state.isAnonymous);
   const linked = useAuthStore((state) => state.linked);
+  const name = useAuthStore(displayName);
 
   const entries = useLibraryStore((state) => state.entries);
   const lastSyncedAt = useLibraryStore((state) => state.lastSyncedAt);
   const pending = useLibraryStore((state) => state.pending);
 
   const stats = useMemo(() => computeStats(Object.values(entries)), [entries]);
-
-  const displayName = user?.user_metadata?.display_name ?? (isAnonymous ? 'Guest' : (user?.email ?? 'You'));
 
   return (
     <Screen>
@@ -61,13 +59,13 @@ export default function ProfileScreen() {
               }}
             >
               <Text variant="headlineMd" colour={colors.primary}>
-                {displayName.slice(0, 1).toUpperCase()}
+                {name.slice(0, 1).toUpperCase()}
               </Text>
             </View>
 
             <View style={{ flex: 1, marginLeft: spacing.md }}>
               <Text variant="headlineSm" numberOfLines={1}>
-                {displayName}
+                {name}
               </Text>
               <Text variant="labelSm" colour="onSurfaceVariant">
                 {isAnonymous

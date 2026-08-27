@@ -13,6 +13,7 @@ import { Cover } from '@/ui/Cover';
 import { PressableScale } from '@/ui/PressableScale';
 import { ScoreBadge, StatusDot } from '@/ui/Indicators';
 import { Text } from '@/ui/Text';
+import { captureHero } from '@/features/title/hero';
 
 /**
  * The poster card used by Discover, Search and the season browser. Cover art is
@@ -46,7 +47,8 @@ export function MediaCard({
   const height = width / aspect.cover;
   const score = media.averageScore ? (media.averageScore / 10).toFixed(1) : null;
 
-  const open = useCallback(() => {
+  const open = useCallback(async () => {
+    await captureHero(coverRef.current, media.id, media.coverImage?.extraLarge ?? media.coverImage?.large ?? null);
     router.push({ pathname: '/title/[id]', params: { id: String(media.id) } });
   }, [router, media]);
 

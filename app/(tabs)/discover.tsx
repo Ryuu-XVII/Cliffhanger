@@ -8,6 +8,7 @@ import { useDiscoverShelf, useGenres, useSeasonBrowse } from '@/api/hooks';
 import type { AniListMediaLite } from '@/api/anilist/types';
 import { MediaCard } from '@/features/catalogue/MediaCard';
 import { SeasonTile } from '@/features/discover/components/SeasonTile';
+import { displayName, useAuthStore } from '@/stores/authStore';
 import { currentSeason, seasonLabel } from '@/utils/season';
 import { hairline, radii, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -30,6 +31,7 @@ export default function DiscoverScreen() {
   const { width } = useWindowDimensions();
   const clearance = useTabBarClearance();
   const scrollY = useSharedValue(0);
+  const name = useAuthStore(displayName);
 
   const season = useMemo(() => currentSeason(), []);
 
@@ -56,7 +58,7 @@ export default function DiscoverScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title="Discover" onAvatarPress={() => router.push('/(tabs)/profile')} />
+      <ScreenHeader title="Discover" onAvatarPress={() => router.push('/(tabs)/profile')} avatarLabel={name} />
 
       <PullToRefresh
         onRefresh={onRefresh}
@@ -67,7 +69,7 @@ export default function DiscoverScreen() {
         <Pressable
           onPress={() => router.push('/search')}
           accessibilityRole="search"
-          accessibilityLabel="Search AniList"
+          accessibilityLabel="Search titles"
           style={{
             flexDirection: 'row',
             alignItems: 'center',
@@ -83,7 +85,7 @@ export default function DiscoverScreen() {
         >
           <Ionicons name="search" size={20} color={colors.onSurfaceVariant} />
           <Text variant="bodyLg" colour="onSurfaceVariant" style={{ marginLeft: spacing.sm + 2 }}>
-            Search AniList...
+            Search titles...
           </Text>
         </Pressable>
 

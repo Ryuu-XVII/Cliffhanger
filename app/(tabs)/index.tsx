@@ -10,6 +10,7 @@ import { JumpBackIn } from '@/features/home/components/JumpBackIn';
 import { ROSTER_CARD_WIDTH, RosterCard } from '@/features/home/components/RosterCard';
 import { SyncBanner } from '@/features/library/components/SyncBanner';
 import { UpgradePrompt } from '@/features/account/UpgradePrompt';
+import { displayName, useAuthStore } from '@/stores/authStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { spacing } from '@/theme/tokens';
@@ -29,6 +30,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const entries = useLibraryStore((state) => state.entries);
   const sync = useLibraryStore((state) => state.sync);
+  const name = useAuthStore(displayName);
   const language = useSettingsStore((state) => state.settings.titleLanguage);
   const clearance = useTabBarClearance();
   const scrollY = useSharedValue(0);
@@ -72,7 +74,7 @@ export default function HomeScreen() {
       <ScreenHeader
         title="Home"
         onAvatarPress={() => router.push('/(tabs)/profile')}
-        avatarLabel="A"
+        avatarLabel={name}
       />
 
       <PullToRefresh

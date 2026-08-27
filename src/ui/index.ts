@@ -12,6 +12,7 @@ export * from './SegmentedTabs';
 export * from './Sheet';
 export * from './Skeleton';
 export * from './States';
+export * from './Stepper';
 export * from './Surfaces';
 export * from './Text';
 export * from './Toaster';

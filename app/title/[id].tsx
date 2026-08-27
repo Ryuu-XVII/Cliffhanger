@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, useWindowDimensions, View, type LayoutRectangle } from 'react-native';
 
 import { useAiringInfo, useMalStats, useMedia } from '@/api/hooks';
 import { mergeStreamingSources, streamingOptions } from '@/api/streaming';
@@ -20,6 +20,7 @@ import {
   StreamingRow,
 } from '@/features/title/components/Rails';
 import { Synopsis } from '@/features/title/components/Synopsis';
+import { HeroCover } from '@/features/title/hero';
 import { totalUnits, unitNoun, useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { toast } from '@/stores/toastStore';
@@ -64,6 +65,29 @@ export default function TitleDetailScreen() {
   const airing = useAiringInfo(Number.isFinite(anilistId) ? anilistId : null);
 
   const [statusOpen, setStatusOpen] = useState(false);
+  const [heroRect, setHeroRect] = useState<LayoutRectangle | null>(null);
+  const coverRef = useRef<View>(null);
+
+  const measureHero = useCallback(() => {
+    coverRef.current?.measureInWindow((x, y, w, h) => {
+      if (w <= 0 || h <= 0) return;
+      setHeroRect((previous) => {
+        // Bail out when nothing moved. A fresh object every layout pass would
+        // re-render, re-fire onLayout, and measure again - a loop that
+        // produced a real device ANR the first time this screen shipped.
+        if (
+          previous &&
+          previous.x === x &&
+          previous.y === y &&
+          previous.width === w &&
+          previous.height === h
+        ) {
+          return previous;
+        }
+        return { x, y, width: w, height: h };
+      });
+    });
+  }, []);
 
   const title = useMemo(
     () => resolveTitle(media.data?.title ?? entry?.snapshot.title, settings.titleLanguage),
@@ -165,7 +189,7 @@ export default function TitleDetailScreen() {
             marginTop: -coverHeight * 0.42,
           }}
         >
-          <View>
+          <View ref={coverRef} collapsable={false} onLayout={measureHero}>
             <Cover
               uri={coverUri}
               width={coverWidth}
@@ -370,7 +394,14 @@ export default function TitleDetailScreen() {
         )}
       </ScrollView>
 
-      {/* DIAGNOSTIC PROBE: hero overlay disabled entirely */ null}
+      {heroRect ? (
+        <HeroCover
+          anilistId={anilistId}
+          uri={coverUri}
+          target={heroRect}
+          accessibilityLabel={title + ' cover art'}
+        />
+      ) : null}
 
       <Sheet visible={statusOpen} onClose={() => setStatusOpen(false)} title="Move to list">
         {STATUS_ORDER.map((status) => (

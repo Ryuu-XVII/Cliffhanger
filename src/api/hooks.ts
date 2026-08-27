@@ -3,7 +3,17 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { AniListSeason } from './anilist/types';
-import { discover, getAiringSchedule, getGenres, getMedia, getMediaTags, getSeason, searchMedia } from './anilist';
+import {
+  discover,
+  getAiringSchedule,
+  getGenres,
+  getMedia,
+  getMediaTags,
+  getSeason,
+  getStudioMedia,
+  searchMedia,
+  searchStudios,
+} from './anilist';
 import { getMalStats } from './jikan';
 import { getAiringInfo } from './animeschedule';
 import { ApiError } from './errors';
@@ -49,16 +59,36 @@ export function useDebounced<T>(value: T, delayMs = 300): T {
   return debounced;
 }
 
-export function useSearch(
-  query: string,
-  options: { format?: string; genre?: string; tag?: string; seasonYear?: number; status?: string; sort?: string[]; type?: 'ANIME' | 'MANGA' } = {},
-) {
+interface SearchOptions {
+  format?: string;
+  genre?: string[];
+  tag?: string[];
+  season?: AniListSeason;
+  seasonYear?: number;
+  status?: string;
+  sort?: string[];
+  type?: 'ANIME' | 'MANGA';
+}
+
+function hasSearchFilters(options: SearchOptions): boolean {
+  return Boolean(
+    options.format ||
+      (options.genre && options.genre.length > 0) ||
+      (options.tag && options.tag.length > 0) ||
+      options.season ||
+      options.seasonYear ||
+      options.status,
+  );
+}
+
+/** Infinite-scroll search used by the dedicated results screen. */
+export function useSearchResults(query: string, options: SearchOptions = {}) {
   const includeAdult = useSettingsStore((state) => state.settings.showAdult);
   const trimmed = query.trim();
-  const hasFilters = Boolean(options.format || options.genre || options.tag || options.seasonYear || options.status);
+  const hasFilters = hasSearchFilters(options);
 
   return useInfiniteQuery({
-    queryKey: ['search', trimmed, options, includeAdult],
+    queryKey: ['search-results', trimmed, options, includeAdult],
     enabled: trimmed.length > 0 || hasFilters,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
@@ -69,21 +99,43 @@ export function useSearch(
   });
 }
 
-/** Paginated search variant used by the dedicated results screen. */
-export function useSearchPage(
-  query: string,
-  page: number,
-  options: { format?: string; genre?: string; tag?: string; seasonYear?: number; status?: string; sort?: string[]; type?: 'ANIME' | 'MANGA' } = {},
-) {
+/** Lightweight inline preview shown under the search field while typing (top few matches). */
+export function useSearchPreview(query: string, type: 'ANIME' | 'MANGA') {
   const includeAdult = useSettingsStore((state) => state.settings.showAdult);
   const trimmed = query.trim();
-  const hasFilters = Boolean(options.format || options.genre || options.tag || options.seasonYear || options.status);
 
   return useQuery({
-    queryKey: ['search-page', trimmed, page, options, includeAdult],
-    enabled: trimmed.length > 0 || hasFilters,
-    queryFn: () => searchMedia({ query: trimmed, page, includeAdult, ...options }),
+    queryKey: ['search-preview', trimmed, type, includeAdult],
+    enabled: trimmed.length >= 2,
+    queryFn: () => searchMedia({ query: trimmed, page: 1, type, includeAdult, sort: ['SEARCH_MATCH', 'POPULARITY_DESC'] }),
     staleTime: STALE.search,
+    retry: retryPolicy,
+  });
+}
+
+/** Studio-name typeahead for the search screen's studio filter. */
+export function useStudioSearch(query: string) {
+  const trimmed = query.trim();
+  return useQuery({
+    queryKey: ['studio-search', trimmed],
+    enabled: trimmed.length >= 2,
+    queryFn: () => searchStudios(trimmed),
+    staleTime: STALE.browse,
+    retry: retryPolicy,
+  });
+}
+
+/** A studio's own catalogue - AniList has no studio filter on Media, so this is a separate browse path (see getStudioMedia). */
+export function useStudioMedia(studioId: number | null, sort: string[]) {
+  const includeAdult = useSettingsStore((state) => state.settings.showAdult);
+
+  return useInfiniteQuery({
+    queryKey: ['studio-media', studioId, sort, includeAdult],
+    enabled: studioId !== null,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => getStudioMedia(studioId as number, pageParam as number, sort, includeAdult),
+    getNextPageParam: (last) => (last.hasNextPage ? last.page + 1 : undefined),
+    staleTime: STALE.browse,
     retry: retryPolicy,
   });
 }
@@ -111,6 +163,21 @@ export function useDiscoverShelf(shelf: DiscoverShelfId) {
   return useQuery({
     queryKey: ['discover', shelf, includeAdult],
     queryFn: () => discover[shelf](1, includeAdult),
+    staleTime: shelf === 'airingSoon' ? STALE.airing : STALE.browse,
+    retry: retryPolicy,
+  });
+}
+
+/** Paginated variant of a discover shelf, for its "See all" destination. */
+export function useDiscoverShelfBrowse(shelf: DiscoverShelfId | null) {
+  const includeAdult = useSettingsStore((state) => state.settings.showAdult);
+
+  return useInfiniteQuery({
+    queryKey: ['discover-browse', shelf, includeAdult],
+    enabled: shelf !== null,
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => discover[shelf as DiscoverShelfId](pageParam as number, includeAdult),
+    getNextPageParam: (last) => (last.hasNextPage ? last.page + 1 : undefined),
     staleTime: shelf === 'airingSoon' ? STALE.airing : STALE.browse,
     retry: retryPolicy,
   });

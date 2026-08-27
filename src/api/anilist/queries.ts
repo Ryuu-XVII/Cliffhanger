@@ -31,11 +31,36 @@ fragment MediaLite on Media {
 
 export const SEARCH_QUERY = `
 ${MEDIA_LITE_FRAGMENT}
-query Search($search: String, $page: Int!, $perPage: Int!, $type: MediaType, $isAdult: Boolean, $format: MediaFormat, $genre: String, $tag: String, $seasonYear: Int, $status: MediaStatus, $sort: [MediaSort]) {
+query Search($search: String, $page: Int!, $perPage: Int!, $type: MediaType, $isAdult: Boolean, $format: MediaFormat, $genre_in: [String], $tag_in: [String], $season: MediaSeason, $seasonYear: Int, $status: MediaStatus, $sort: [MediaSort]) {
   Page(page: $page, perPage: $perPage) {
     pageInfo { total currentPage lastPage hasNextPage perPage }
-    media(search: $search, type: $type, isAdult: $isAdult, format: $format, genre: $genre, tag: $tag, seasonYear: $seasonYear, status: $status, sort: $sort) {
+    media(search: $search, type: $type, isAdult: $isAdult, format: $format, genre_in: $genre_in, tag_in: $tag_in, season: $season, seasonYear: $seasonYear, status: $status, sort: $sort) {
       ...MediaLite
+    }
+  }
+}
+`;
+
+/** Studio's own catalogue - AniList has no studio filter on the Media root query. */
+export const STUDIO_SEARCH_QUERY = `
+query StudioSearch($search: String, $page: Int!, $perPage: Int!) {
+  Page(page: $page, perPage: $perPage) {
+    studios(search: $search) {
+      id
+      name
+    }
+  }
+}
+`;
+
+export const STUDIO_MEDIA_QUERY = `
+${MEDIA_LITE_FRAGMENT}
+query StudioMedia($id: Int!, $page: Int!, $perPage: Int!, $sort: [MediaSort]) {
+  Studio(id: $id) {
+    name
+    media(page: $page, perPage: $perPage, sort: $sort, isMain: true) {
+      pageInfo { total currentPage lastPage hasNextPage perPage }
+      nodes { ...MediaLite }
     }
   }
 }

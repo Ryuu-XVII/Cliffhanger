@@ -1,10 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, FlatList, useWindowDimensions, View } from 'react-native';
 import { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 
-import { useGenreShelf, useSeasonBrowse } from '@/api/hooks';
+import { useDiscoverShelfBrowse, useGenreShelf, useSeasonBrowse, type DiscoverShelfId } from '@/api/hooks';
 import type { AniListSeason } from '@/api/anilist/types';
 import { MediaCard } from '@/features/catalogue/MediaCard';
 import {
@@ -14,11 +13,12 @@ import {
   seasonLabel,
   type SeasonRef,
 } from '@/utils/season';
-import { radii, spacing } from '@/theme/tokens';
+import { spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 import { ScreenHeader } from '@/ui/Header';
 import { Screen } from '@/ui/Screen';
 import { SkeletonCard } from '@/ui/Skeleton';
+import { Stepper } from '@/ui/Stepper';
 import { EmptyState, ErrorState } from '@/ui/States';
 import { Text } from '@/ui/Text';
 
@@ -27,13 +27,25 @@ import { Text } from '@/ui/Text';
  * season stepper wraps years correctly, which the naive month/4 version does
  * not - December belongs to the next winter.
  */
+const SHELF_TITLES: Record<DiscoverShelfId, string> = {
+  trending: 'Trending now',
+  popularNow: 'Popular now',
+  topRated: 'Top rated',
+  topMovies: 'Top movies',
+  airingSoon: 'Airing soon',
+};
+
 export default function SeasonScreen() {
-  const params = useLocalSearchParams<{ season?: string; year?: string; genre?: string }>();
+  const params = useLocalSearchParams<{ season?: string; year?: string; genre?: string; shelf?: string }>();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const scrollY = useSharedValue(0);
 
   const genre = typeof params.genre === 'string' ? params.genre : null;
+  const shelf =
+    typeof params.shelf === 'string' && params.shelf in SHELF_TITLES
+      ? (params.shelf as DiscoverShelfId)
+      : null;
 
   const [ref, setRef] = useState<SeasonRef>(() => {
     const fallback = currentSeason();
@@ -44,16 +56,18 @@ export default function SeasonScreen() {
 
   const seasonQuery = useSeasonBrowse(ref.season, ref.year);
   const genreQuery = useGenreShelf(genre);
+  const shelfQuery = useDiscoverShelfBrowse(shelf);
 
   const items = useMemo(() => {
+    if (shelf) return shelfQuery.data?.pages.flatMap((page) => page.items) ?? [];
     if (genre) return genreQuery.data?.items ?? [];
     return seasonQuery.data?.pages.flatMap((page) => page.items) ?? [];
-  }, [genre, genreQuery.data, seasonQuery.data]);
+  }, [shelf, shelfQuery.data, genre, genreQuery.data, seasonQuery.data]);
 
-  const isLoading = genre ? genreQuery.isLoading : seasonQuery.isLoading;
-  const isError = genre ? genreQuery.isError : seasonQuery.isError;
-  const error = genre ? genreQuery.error : seasonQuery.error;
-  const refetch = genre ? genreQuery.refetch : seasonQuery.refetch;
+  const isLoading = shelf ? shelfQuery.isLoading : genre ? genreQuery.isLoading : seasonQuery.isLoading;
+  const isError = shelf ? shelfQuery.isError : genre ? genreQuery.isError : seasonQuery.isError;
+  const error = shelf ? shelfQuery.error : genre ? genreQuery.error : seasonQuery.error;
+  const refetch = shelf ? shelfQuery.refetch : genre ? genreQuery.refetch : seasonQuery.refetch;
 
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -66,9 +80,9 @@ export default function SeasonScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title={genre ?? 'Season'} showBack />
+      <ScreenHeader title={shelf ? SHELF_TITLES[shelf] : (genre ?? 'Season')} showBack />
 
-      {genre ? null : (
+      {genre || shelf ? null : (
         <View
           style={{
             flexDirection: 'row',
@@ -114,9 +128,11 @@ export default function SeasonScreen() {
           icon="calendar-outline"
           title="Nothing listed"
           message={
-            genre
-              ? 'AniList has no titles for this genre right now.'
-              : 'This season has not been catalogued yet. Try the previous one.'
+            shelf
+              ? 'AniList has nothing here right now.'
+              : genre
+                ? 'AniList has no titles for this genre right now.'
+                : 'This season has not been catalogued yet. Try the previous one.'
           }
         />
       ) : (
@@ -129,6 +145,10 @@ export default function SeasonScreen() {
           scrollEventThrottle={16}
           onEndReachedThreshold={0.6}
           onEndReached={() => {
+            if (shelf) {
+              if (shelfQuery.hasNextPage && !shelfQuery.isFetchingNextPage) void shelfQuery.fetchNextPage();
+              return;
+            }
             if (!genre && seasonQuery.hasNextPage && !seasonQuery.isFetchingNextPage) {
               void seasonQuery.fetchNextPage();
             }
@@ -144,7 +164,7 @@ export default function SeasonScreen() {
             />
           )}
           ListFooterComponent={
-            seasonQuery.isFetchingNextPage ? (
+            (shelf ? shelfQuery.isFetchingNextPage : seasonQuery.isFetchingNextPage) ? (
               <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
             ) : null
           }
@@ -154,32 +174,3 @@ export default function SeasonScreen() {
   );
 }
 
-function Stepper({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: 'chevron-back' | 'chevron-forward';
-  label: string;
-  onPress: () => void;
-}) {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={10}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: radii.full,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: colors.surfaceContainerHigh,
-      }}
-    >
-      <Ionicons name={icon} size={20} color={colors.onSurface} />
-    </Pressable>
-  );
-}

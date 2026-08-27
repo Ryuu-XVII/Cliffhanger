@@ -80,6 +80,10 @@ async function run(uid: string): Promise<SyncResult> {
 
   const meta = localStore.readMeta(uid);
   const remoteEntries = await remote.pullEntries(uid, meta.lastRemoteUpdatedAt);
+  // Read local state only now, after the network await - a user edit made
+  // while pullEntries was in flight must not be clobbered by a stale snapshot
+  // taken before that edit happened. No await follows until the write below,
+  // so nothing can slip in between the read and the write.
   const local = localStore.readEntries(uid);
   let newestRemote = meta.lastRemoteUpdatedAt ?? 0;
 
