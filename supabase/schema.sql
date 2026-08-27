@@ -26,14 +26,28 @@ create table if not exists public.devices (
   updated_at timestamptz not null default now(),
   primary key (user_id, token)
 );
+create table if not exists public.notification_receipts (
+  id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  anilist_id integer not null,
+  episode integer not null,
+  created_at timestamptz not null default now()
+);
 alter table public.profiles enable row level security;
 alter table public.entries enable row level security;
 alter table public.custom_lists enable row level security;
 alter table public.devices enable row level security;
+alter table public.notification_receipts enable row level security;
+drop policy if exists "own profile" on public.profiles;
+drop policy if exists "own entries" on public.entries;
+drop policy if exists "own lists" on public.custom_lists;
+drop policy if exists "own devices" on public.devices;
+drop policy if exists "no client receipts" on public.notification_receipts;
 create policy "own profile" on public.profiles for all using (auth.uid() = id) with check (auth.uid() = id);
 create policy "own entries" on public.entries for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own lists" on public.custom_lists for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own devices" on public.devices for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "no client receipts" on public.notification_receipts for all using (false) with check (false);
 create or replace function public.delete_my_account(target_user_id uuid) returns void language plpgsql security definer set search_path = public as $$
 begin
   if auth.uid() is distinct from target_user_id then raise exception 'not allowed'; end if;

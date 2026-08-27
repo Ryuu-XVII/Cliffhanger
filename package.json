@@ -66,7 +66,6 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit",
-    "functions:build": "npm --prefix functions run build",
     "check:live": "node scripts/live-check.mjs",
     "smoke:android": "bash scripts/smoke-android.sh"
   },
