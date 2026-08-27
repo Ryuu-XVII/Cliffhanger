@@ -54,3 +54,6 @@ begin
   delete from auth.users where id = target_user_id;
 end;
 $$;
+revoke execute on function public.delete_my_account(uuid) from public;
+revoke execute on function public.delete_my_account(uuid) from anon;
+grant execute on function public.delete_my_account(uuid) to authenticated;

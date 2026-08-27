@@ -1,3 +1,5 @@
+-- The linked production project supplies the private Authorization header via
+-- its deployed cron configuration. Keep CRON_SECRET out of this repository.
 create extension if not exists pg_cron with schema extensions;
 create extension if not exists pg_net with schema extensions;
 select cron.unschedule(jobid) from cron.job where jobname = 'cliffhanger-airing-notifications';

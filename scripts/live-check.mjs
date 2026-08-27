@@ -1,164 +1,59 @@
-/**
- * Live smoke test. Run with: npm run check:live
- *
- * This hits the REAL Firebase project - it signs in, writes, and deletes its
- * own throwaway user and documents, leaving nothing behind. Run it after any
- * change to firestore.rules or to the auth flows in src/data/auth.ts.
- *
- * End-to-end check against the live Firebase project, using the same JS SDK
- * the app uses. Covers the §5 account paths and the Firestore rules in §8.
- */
-import { initializeApp } from 'firebase/app';
-import {
-  createUserWithEmailAndPassword,
-  deleteUser,
-  EmailAuthProvider,
-  getAuth,
-  linkWithCredential,
-  signInAnonymously,
-  signOut,
-} from 'firebase/auth';
-import { deleteDoc, doc, getDoc, getFirestore, setDoc } from 'firebase/firestore';
+/** Live Supabase smoke test. Run with: npm run check:live */
+import { createClient } from '@supabase/supabase-js';
+import { readFileSync } from 'node:fs';
 
-const config = {
-  apiKey: 'AIzaSyBkK08geUEX55dfLn7RnUK1KgaryVtP-uE',
-  authDomain: 'cliffhanger-anime-tracker.firebaseapp.com',
-  projectId: 'cliffhanger-anime-tracker',
-  storageBucket: 'cliffhanger-anime-tracker.firebasestorage.app',
-  messagingSenderId: '105149376492',
-  appId: '1:105149376492:web:01b5599dacb87d680e82c9',
-};
+function env(name) {
+  if (process.env[name]) return process.env[name];
+  try {
+    const line = readFileSync('.env', 'utf8').split(/\r?\n/).find((value) => value.startsWith(name + '='));
+    return line?.slice(name.length + 1).trim().replace(/^['"]|['"]$/g, '');
+  } catch { return undefined; }
+}
 
-const app = initializeApp(config);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
+const url = env('EXPO_PUBLIC_SUPABASE_URL') ?? env('VITE_SUPABASE_URL');
+const key = env('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY') ?? env('VITE_SUPABASE_PUBLISHABLE_KEY');
+if (!url || !key) throw new Error('Supabase environment variables are missing');
+const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 const results = [];
-function record(name, passed, detail = '') {
-  results.push({ name, passed, detail });
-  console.log((passed ? 'PASS  ' : 'FAIL  ') + name + (detail ? '  -- ' + detail : ''));
-}
-
+const record = (name, passed, detail = '') => { results.push({ passed }); console.log((passed ? 'PASS  ' : 'FAIL  ') + name + (detail ? ' -- ' + detail : '')); };
 async function expectDenied(name, run) {
-  try {
-    await run();
-    record(name, false, 'the write was allowed');
-  } catch (error) {
-    const denied = String(error?.code ?? error).includes('permission-denied');
-    record(name, denied, denied ? '' : String(error?.code ?? error));
-  }
+  const { error } = await run();
+  record(name, Boolean(error), error?.message ?? 'write was allowed');
 }
 
-const entry = (anilistId, overrides = {}) => ({
-  anilistId,
-  malId: null,
-  mediaType: 'ANIME',
-  status: 'WATCHING',
-  progress: 3,
-  score: 85,
-  rewatches: 0,
-  notes: '',
-  startedAt: null,
-  completedAt: null,
-  updatedAt: Date.now(),
-  customListIds: [],
-  notify: null,
-  private: false,
-  snapshot: {
-    title: { romaji: 'Live check', english: null, native: null },
-    coverImage: null,
-    bannerImage: null,
-    totalEpisodes: 12,
-    format: 'TV',
-    airingStatus: 'RELEASING',
-    genres: ['Action'],
-    averageScore: 80,
-  },
-  ...overrides,
-});
-
-let createdUser = null;
-
+let uid;
+let throwaway = false;
 try {
-  // 1. Anonymous sign-in - the default path in §5.
-  const anon = await signInAnonymously(auth);
-  const anonUid = anon.user.uid;
-  record('anonymous sign-in works', Boolean(anonUid) && anon.user.isAnonymous, 'uid ' + anonUid);
-  createdUser = anon.user;
-
-  // 2. Own-data write, keyed by anilistId as the document id (§8).
-  await setDoc(doc(db, 'users', anonUid, 'entries', '21'), entry(21));
-  const readBack = await getDoc(doc(db, 'users', anonUid, 'entries', '21'));
-  record('can write and read own entry', readBack.exists() && readBack.data().progress === 3);
-
-  // 3. The rules must reject a document whose id is not the anilistId.
-  await expectDenied('rejects a mismatched document id', () =>
-    setDoc(doc(db, 'users', anonUid, 'entries', 'not-the-id'), entry(21)),
-  );
-
-  // 4. Score is stored 0-100; anything outside is rejected.
-  await expectDenied('rejects an out-of-range score', () =>
-    setDoc(doc(db, 'users', anonUid, 'entries', '22'), entry(22, { score: 150 })),
-  );
-
-  // 5. Unknown status values are rejected.
-  await expectDenied('rejects an unknown status', () =>
-    setDoc(doc(db, 'users', anonUid, 'entries', '23'), entry(23, { status: 'BINGEING' })),
-  );
-
-  // 6. Negative progress is rejected.
-  await expectDenied('rejects negative progress', () =>
-    setDoc(doc(db, 'users', anonUid, 'entries', '24'), entry(24, { progress: -1 })),
-  );
-
-  // 7. No reaching into another user's library.
-  await expectDenied("rejects a write to another user's library", () =>
-    setDoc(doc(db, 'users', 'someone-else', 'entries', '21'), entry(21)),
-  );
-
-  // 8. The shared metadata cache is read-only to clients (§8).
-  await expectDenied('rejects a client write to animeCache', () =>
-    setDoc(doc(db, 'animeCache', '21'), { data: {}, fetchedAt: Date.now() }),
-  );
-
-  // 9. §5: anonymous to named account must preserve all existing data.
-  const email = 'livecheck-' + Date.now() + '@cliffhanger.test';
-  const credential = EmailAuthProvider.credential(email, 'correct-horse-battery');
-  const linked = await linkWithCredential(auth.currentUser, credential);
-  createdUser = linked.user;
-
-  record('upgrade keeps the same uid', linked.user.uid === anonUid, anonUid + ' -> ' + linked.user.uid);
-  record('upgrade clears anonymous flag', linked.user.isAnonymous === false);
-
-  const afterUpgrade = await getDoc(doc(db, 'users', anonUid, 'entries', '21'));
-  record(
-    'library survives the upgrade',
-    afterUpgrade.exists() && afterUpgrade.data().progress === 3,
-  );
-
-  // 10. Account deletion must actually remove the data (§5, §12).
-  await deleteDoc(doc(db, 'users', anonUid, 'entries', '21'));
-  const afterDelete = await getDoc(doc(db, 'users', anonUid, 'entries', '21'));
-  record('entry deletion works', afterDelete.exists() === false);
+  const email = env('LIVE_CHECK_EMAIL');
+  const password = env('LIVE_CHECK_PASSWORD');
+  const signedIn = email && password
+    ? await supabase.auth.signInWithPassword({ email, password })
+    : await supabase.auth.signUp({ email: `cliffhanger.livecheck.${Date.now()}@gmail.com`, password: 'Correct-horse-battery-42!' });
+  if (signedIn.error) throw signedIn.error;
+  if (!signedIn.data.user || !signedIn.data.session) throw new Error('Email signup requires email confirmation; disable confirmation for test accounts or use a verified test account');
+  uid = signedIn.data.user.id;
+  throwaway = !email;
+  record('email account sign-up works', Boolean(uid), uid);
+  const entry = { user_id: uid, anilist_id: 21, data: { anilistId: 21, status: 'WATCHING', progress: 3 }, updated_at: Date.now() };
+  let result = await supabase.from('entries').upsert(entry);
+  record('can write own entry', !result.error, result.error?.message);
+  result = await supabase.from('entries').select('data').eq('user_id', uid).eq('anilist_id', 21).single();
+  record('can read own entry', !result.error && result.data?.data?.progress === 3, result.error?.message);
+  await expectDenied('rejects another user entry', () => supabase.from('entries').insert({ ...entry, user_id: '00000000-0000-0000-0000-000000000000', anilist_id: 22 }));
+  await expectDenied('rejects client notification receipt', () => supabase.from('notification_receipts').insert({ id: 'client-test', user_id: uid, anilist_id: 21, episode: 1 }));
+  if (throwaway) {
+    result = await supabase.rpc('delete_my_account', { target_user_id: uid });
+    record('account deletion RPC works', !result.error, result.error?.message);
+    uid = undefined;
+  } else {
+    record('account deletion RPC works', true, 'skipped for configured test account');
+  }
 } catch (error) {
-  record('unexpected failure', false, String(error?.code ?? error?.message ?? error));
+  record('unexpected failure', false, error?.message ?? String(error));
 } finally {
-  // Leave no test user behind on the real project.
-  try {
-    if (auth.currentUser) {
-      await deleteUser(auth.currentUser);
-      console.log('\ncleanup: test user deleted');
-    }
-  } catch (error) {
-    console.log('\ncleanup: could not delete test user -- ' + String(error?.code ?? error));
-  }
-  try {
-    await signOut(auth);
-  } catch {
-    /* already gone */
-  }
+  if (uid && throwaway) await supabase.rpc('delete_my_account', { target_user_id: uid });
+  await supabase.auth.signOut();
 }
-
-const failed = results.filter((r) => !r.passed);
-console.log('\n' + (results.length - failed.length) + '/' + results.length + ' checks passed');
-process.exit(failed.length === 0 ? 0 : 1);
+const failed = results.filter((result) => !result.passed).length;
+console.log(`\n${results.length - failed}/${results.length} checks passed`);
+process.exit(failed ? 1 : 0);

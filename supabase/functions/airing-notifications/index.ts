@@ -34,7 +34,8 @@ Deno.serve(async (request) => {
     for (const entry of (entries ?? []).filter((item) => item.anilist_id === airing.media.id)) {
       const { data: profile } = await supabase.from('profiles').select('settings').eq('id', entry.user_id).maybeSingle();
       const settings = (profile?.settings ?? {}) as Record<string, unknown>;
-      if (settings.notificationsEnabled === false || (entry.data as Record<string, unknown>)?.notify === false) continue;
+      const entryData = (entry.data ?? {}) as Record<string, unknown>;
+      if (settings.notificationsEnabled === false || entryData.notify === false || (entryData.notify !== true && settings.notifyOnAiringDefault === false)) continue;
       if (isQuietHours(settings.quietHours as { start?: string; end?: string } | null, Number(settings.timezoneOffsetMinutes ?? 0), airing.airingAt)) continue;
       const { data: devices } = await supabase.from('devices').select('token').eq('user_id', entry.user_id);
       const messages = (devices ?? []).map((device) => ({ to: device.token, title: airing.media.title?.english ?? airing.media.title?.romaji ?? 'New episode', body: 'Episode ' + airing.episode + ' is out.', sound: 'default', channelId: 'airing', data: { anilistId: String(airing.media.id), episode: String(airing.episode) } }));
