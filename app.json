@@ -1,25 +1,81 @@
 {
   "expo": {
-    "name": "cliffhanger",
+    "name": "Cliffhanger",
     "slug": "cliffhanger",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "scheme": "cliffhanger",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.adnaan.cliffhanger",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      },
+      "googleServicesFile": "./firebase/GoogleService-Info.plist"
     },
     "android": {
+      "package": "com.adnaan.cliffhanger",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "POST_NOTIFICATIONS"
+      ],
+      "googleServicesFile": "./firebase/google-services.json"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-localization",
+      "expo-web-browser",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "color": "#DDB7FF"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#000000",
+          "imageWidth": 180
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f2049695-ed62-40f0-8cb4-aaac184c1ee2"
+      }
+    },
+    "owner": "ryuuxviis-team"
   }
 }

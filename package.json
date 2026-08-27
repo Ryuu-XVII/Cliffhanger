@@ -1,22 +1,87 @@
 {
   "name": "cliffhanger",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/hanken-grotesk": "^0.4.3",
+    "@expo-google-fonts/syne": "^0.4.2",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
+    "@tanstack/react-query": "^5.102.5",
     "expo": "~57.0.16",
+    "expo-apple-authentication": "~57.0.1",
+    "expo-auth-session": "~57.0.9",
+    "expo-blur": "~57.0.2",
+    "expo-constants": "~57.0.14",
+    "expo-crypto": "~57.0.2",
+    "expo-device": "~57.0.1",
+    "expo-document-picker": "~57.0.1",
+    "expo-file-system": "~57.0.5",
+    "expo-font": "~57.0.1",
+    "expo-haptics": "~57.0.1",
+    "expo-image": "~57.0.3",
+    "expo-linear-gradient": "~57.0.1",
+    "expo-linking": "~57.0.7",
+    "expo-localization": "~57.0.1",
+    "expo-notifications": "~57.0.14",
+    "expo-router": "~57.0.16",
+    "expo-secure-store": "~57.0.1",
+    "expo-sharing": "~57.0.15",
+    "expo-splash-screen": "~57.0.8",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.2",
+    "expo-web-browser": "~57.0.2",
+    "firebase": "^12.18.0",
     "react": "19.2.3",
-    "react-native": "0.86.2"
+    "react-native": "0.86.2",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-mmkv": "^4.3.2",
+    "react-native-nitro-modules": "^0.37.0",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-worklets": "0.10.1",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@react-native/jest-preset": "^0.86.2",
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "29.5.14",
+    "@types/node": "^26.3.0",
     "@types/react": "~19.2.2",
+    "eas-cli": "^22.4.0",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.4",
+    "react-test-renderer": "^19.2.8",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "typecheck": "tsc --noEmit",
+    "functions:build": "npm --prefix functions run build",
+    "check:live": "node scripts/live-check.mjs",
+    "smoke:android": "bash scripts/smoke-android.sh"
   },
-  "private": true
+  "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-reanimated|@shopify/react-native-skia))"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "!src/**/*.d.ts"
+    ]
+  }
 }

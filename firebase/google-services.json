@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "105149376492",
+    "project_id": "cliffhanger-anime-tracker",
+    "storage_bucket": "cliffhanger-anime-tracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:105149376492:android:65f7a868388ad90e0e82c9",
+        "android_client_info": {
+          "package_name": "com.adnaan.cliffhanger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBtT7wBKU-UkD7cFWwoCIam0i9sh-wbFYU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
