@@ -120,12 +120,16 @@ export interface UserSettings {
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
-  titleLanguage: 'romaji',
+  titleLanguage: 'english',
   scoreFormat: 'POINT_10',
   theme: 'obsidian',
   accent: 'amethyst',
-  notificationsEnabled: true,
-  notifyOnAiringDefault: true,
+  // Off until the user explicitly opts in during onboarding (app/onboarding.tsx) -
+  // requesting the OS notification permission before the user has asked for
+  // anything is exactly the pattern that gets an app's permission prompt
+  // reflexively denied.
+  notificationsEnabled: false,
+  notifyOnAiringDefault: false,
   quietHours: null,
   reduceMotion: false,
   hapticsEnabled: true,

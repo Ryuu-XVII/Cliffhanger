@@ -25,6 +25,3 @@ export const timing = {
   /** Reduced-motion substitute: near-instant, never zero (avoids flicker). */
   reduced: { duration: 80, easing: Easing.linear } satisfies WithTimingConfig,
 } as const;
-
-/** Interaction → visible feedback must land under 100ms (§9). */
-export const FEEDBACK_BUDGET_MS = 100;

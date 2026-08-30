@@ -40,8 +40,3 @@ export function useTheme(): Theme {
   if (!ctx) throw new Error('useTheme must be used inside <ThemeProvider>');
   return ctx;
 }
-
-/** Convenience: `const c = useColors()` reads nicer than `useTheme().colors`. */
-export function useColors(): Palette {
-  return useTheme().colors;
-}

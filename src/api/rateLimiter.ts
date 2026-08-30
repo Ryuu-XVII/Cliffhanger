@@ -3,10 +3,21 @@
  * token bucket plus a hard serialising gate; every outbound call passes through
  * it, so the app cannot burst past the limit no matter how many screens mount.
  */
+export type RateLimitPriority = 'high' | 'normal';
+
 export class RateLimiter {
   private tokens: number;
   private lastRefill: number;
-  private queue: Array<() => void> = [];
+  /**
+   * Two queues rather than one: a background prefetch (a Discover shelf, the
+   * Home airing widget) can drain the whole token budget before a user ever
+   * opens Search, and FIFO would then make an interactive search wait behind
+   * every one of those. High-priority requests are always served first -
+   * still capped at the same overall rate, just re-ordered so what the user
+   * is actively waiting on is not queued behind work nobody is looking at.
+   */
+  private queueHigh: Array<() => void> = [];
+  private queueNormal: Array<() => void> = [];
   private draining = false;
   /** Set when a 429 arrives - all traffic pauses until this passes. */
   private penaltyUntil = 0;
@@ -30,9 +41,9 @@ export class RateLimiter {
     this.tokens = 0;
   }
 
-  async acquire(): Promise<void> {
+  async acquire(priority: RateLimitPriority = 'normal'): Promise<void> {
     await new Promise<void>((resolve) => {
-      this.queue.push(resolve);
+      (priority === 'high' ? this.queueHigh : this.queueNormal).push(resolve);
       void this.drain();
     });
   }
@@ -45,12 +56,20 @@ export class RateLimiter {
     this.lastRefill = now;
   }
 
+  private queueLength(): number {
+    return this.queueHigh.length + this.queueNormal.length;
+  }
+
+  private dequeue(): (() => void) | undefined {
+    return this.queueHigh.shift() ?? this.queueNormal.shift();
+  }
+
   private async drain(): Promise<void> {
     if (this.draining) return;
     this.draining = true;
 
     try {
-      while (this.queue.length > 0) {
+      while (this.queueLength() > 0) {
         const penaltyLeft = this.penaltyUntil - Date.now();
         if (penaltyLeft > 0) {
           await sleep(penaltyLeft);
@@ -65,7 +84,7 @@ export class RateLimiter {
         }
 
         this.tokens -= 1;
-        const next = this.queue.shift();
+        const next = this.dequeue();
         next?.();
         if (this.minGapMs > 0) await sleep(this.minGapMs);
       }
@@ -83,8 +102,6 @@ export function sleep(ms: number): Promise<void> {
 export const anilistLimiter = RateLimiter.perMinute(30);
 /** Jikan: conservative, and never in a tight loop (§4.2). */
 export const jikanLimiter = RateLimiter.perMinute(30, 400);
-/** MAL: community practice is at most 1 req/sec (§4.3). */
-export const malLimiter = RateLimiter.perMinute(60, 1000);
 /**
  * AnimeSchedule: the public endpoints are explicitly documented as having
  * stricter limits than the token-authenticated ones, and no number is

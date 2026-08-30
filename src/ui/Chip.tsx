@@ -83,6 +83,95 @@ export function Chip({
   );
 }
 
+export type TriChipState = 'neutral' | 'included' | 'excluded';
+
+/**
+ * A chip that cycles neutral -> included -> excluded on tap.
+ *
+ * Filters like genres and tags need both "must have" and "must not have", and
+ * two parallel lists of the same 400 values would double an already long
+ * screen. Exclusion reads as a struck-through label on an error-tinted pill so
+ * it is never mistaken for a selection.
+ */
+export function TriChip({
+  label,
+  state,
+  onPress,
+  compact = true,
+  style,
+}: {
+  label: string;
+  state: TriChipState;
+  onPress: () => void;
+  compact?: boolean;
+  style?: ViewStyle;
+}) {
+  const { colors } = useTheme();
+
+  const background =
+    state === 'included'
+      ? colors.primaryContainer
+      : state === 'excluded'
+        ? colors.errorContainer
+        : 'rgba(255,255,255,0.06)';
+  const foreground =
+    state === 'included'
+      ? colors.onPrimaryContainer
+      : state === 'excluded'
+        ? colors.onErrorContainer
+        : colors.onSurfaceVariant;
+
+  return (
+    <PressableScale
+      onPress={onPress}
+      scaleTo={0.94}
+      rotateTo={0}
+      accessibilityRole="button"
+      accessibilityLabel={
+        label +
+        (state === 'included' ? ', included' : state === 'excluded' ? ', excluded' : '')
+      }
+      accessibilityHint={
+        state === 'neutral'
+          ? 'Tap to include'
+          : state === 'included'
+            ? 'Tap to exclude'
+            : 'Tap to clear'
+      }
+      accessibilityState={{ selected: state !== 'neutral' }}
+      style={{ borderRadius: radii.full }}
+    >
+      <View
+        style={[
+          styles.chip,
+          {
+            backgroundColor: background,
+            borderColor: state === 'neutral' ? hairline : 'transparent',
+            paddingVertical: compact ? spacing.xs : spacing.sm,
+            paddingHorizontal: compact ? spacing.sm + 2 : spacing.md,
+            flexDirection: 'row',
+            alignItems: 'center',
+          },
+          style ?? {},
+        ]}
+      >
+        {state === 'excluded' ? (
+          <Text variant={compact ? 'labelSm' : 'labelLg'} colour={foreground} style={{ marginRight: 3 }}>
+            −
+          </Text>
+        ) : null}
+        <Text
+          variant={compact ? 'labelSm' : 'labelLg'}
+          colour={foreground}
+          style={state === 'excluded' ? { textDecorationLine: 'line-through' } : undefined}
+        >
+          {label}
+        </Text>
+      </View>
+    </PressableScale>
+  );
+}
+
 const styles = StyleSheet.create({
   chip: {
     borderRadius: radii.full,

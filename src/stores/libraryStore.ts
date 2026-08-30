@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type { AniListMedia, AniListMediaLite } from '@/api/anilist/types';
+import { scheduleAutoSync } from '@/data/autoSync';
 import { localStore } from '@/data/localStore';
 import {
   emptyEntry,
@@ -10,7 +11,7 @@ import {
   type MediaType,
 } from '@/data/models';
 import { syncNow } from '@/data/sync';
-import { enqueue, pendingCount } from '@/data/syncQueue';
+import { enqueue, pendingCount, type SyncOp } from '@/data/syncQueue';
 import { mediaTypeOf, toSnapshot } from '@/data/transforms';
 
 /**
@@ -19,6 +20,8 @@ import { mediaTypeOf, toSnapshot } from '@/data/transforms';
  * instant), then persisted to local storage, then queued for Firestore.
  * The network is never on the critical path of an interaction.
  */
+
+type SyncOrigin = NonNullable<SyncOp['origin']>;
 
 interface LibraryState {
   uid: string | null;
@@ -39,7 +42,12 @@ interface LibraryState {
   add: (media: AniListMediaLite | AniListMedia, status?: ListStatus) => LibraryEntry;
   remove: (anilistId: number) => LibraryEntry | null;
   update: (anilistId: number, patch: Partial<LibraryEntry>) => LibraryEntry | null;
-  restore: (entry: LibraryEntry) => void;
+  /**
+   * Writes an entry back verbatim - used by undo and by the AniList import.
+   * Pass 'anilist' as the origin when the entry came from AniList so F-23's
+   * write-back does not immediately push it straight back out again.
+   */
+  restore: (entry: LibraryEntry, origin?: SyncOrigin) => void;
 
   setStatus: (anilistId: number, status: ListStatus) => void;
   setProgress: (anilistId: number, progress: number) => ProgressOutcome;
@@ -79,23 +87,29 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
     if (uid) localStore.writeLists(uid, lists);
   }
 
-  function queueEntry(entry: LibraryEntry): void {
+  function autoSync(): void {
+    scheduleAutoSync(() => void get().sync());
+  }
+
+  function queueEntry(entry: LibraryEntry, origin: SyncOrigin = 'local'): void {
     const uid = get().uid;
     if (!uid) return;
     enqueue(uid, {
       key: 'entry:' + entry.anilistId,
       type: 'entry.upsert',
       payload: entry,
+      origin,
     });
     set({ pending: pendingCount(uid) });
+    autoSync();
   }
 
-  function commit(entry: LibraryEntry): LibraryEntry {
+  function commit(entry: LibraryEntry, origin: SyncOrigin = 'local'): LibraryEntry {
     const stamped = { ...entry, updatedAt: Date.now() };
     const entries = { ...get().entries, [String(stamped.anilistId)]: stamped };
     set({ entries });
     persist(entries);
-    queueEntry(stamped);
+    queueEntry(stamped, origin);
     return stamped;
   }
 
@@ -186,6 +200,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       if (uid) {
         enqueue(uid, { key: 'entry:' + anilistId, type: 'entry.delete', payload: anilistId });
         set({ pending: pendingCount(uid) });
+        autoSync();
       }
       return entry;
     },
@@ -196,8 +211,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       return commit({ ...entry, ...patch });
     },
 
-    restore: (entry) => {
-      commit(entry);
+    restore: (entry, origin = 'local') => {
+      commit(entry, origin);
     },
 
     setStatus: (anilistId, status) => {
@@ -246,6 +261,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       if (uid) {
         enqueue(uid, { key: 'list:' + list.id, type: 'list.upsert', payload: list });
         set({ pending: pendingCount(uid) });
+        autoSync();
       }
       return list;
     },
@@ -262,6 +278,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       if (uid && updated) {
         enqueue(uid, { key: 'list:' + id, type: 'list.upsert', payload: updated });
         set({ pending: pendingCount(uid) });
+        autoSync();
       }
     },
 
@@ -293,6 +310,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       if (uid) {
         enqueue(uid, { key: 'list:' + id, type: 'list.delete', payload: id });
         set({ pending: pendingCount(uid) });
+        autoSync();
       }
     },
 
@@ -370,11 +388,6 @@ export function unitNoun(entry: LibraryEntry, plural = false): string {
 }
 
 /* ----------------------------- selectors ----------------------------- */
-
-export function selectEntry(anilistId: number | null) {
-  return (state: { entries: Record<string, LibraryEntry> }): LibraryEntry | null =>
-    anilistId === null ? null : (state.entries[String(anilistId)] ?? null);
-}
 
 /**
  * DO NOT pass this straight to useLibraryStore(). It builds a new object on

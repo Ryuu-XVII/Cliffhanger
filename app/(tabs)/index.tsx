@@ -14,7 +14,7 @@ import { displayName, useAuthStore } from '@/stores/authStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { spacing } from '@/theme/tokens';
-import { EmptyState } from '@/ui/States';
+import { EmptyState, ErrorState } from '@/ui/States';
 import { Screen, useTabBarClearance } from '@/ui/Screen';
 import { ScreenHeader, SectionHeader } from '@/ui/Header';
 import { SkeletonRow } from '@/ui/Skeleton';
@@ -132,6 +132,8 @@ export default function HomeScreen() {
               <SkeletonRow />
               <SkeletonRow />
             </View>
+          ) : airing.isError ? (
+            <ErrorState error={airing.error} onRetry={() => void airing.refetch()} compact />
           ) : relevantAiring.length > 0 ? (
             relevantAiring.map((item) => (
               <AiringRow key={item.id + ':' + item.episode} item={item} />

@@ -48,12 +48,20 @@ create policy "own entries" on public.entries for all using (auth.uid() = user_i
 create policy "own lists" on public.custom_lists for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own devices" on public.devices for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "no client receipts" on public.notification_receipts for all using (false) with check (false);
-create or replace function public.delete_my_account(target_user_id uuid) returns void language plpgsql security definer set search_path = public as $$
+-- Self-service account deletion (§5, §12, POPIA/GDPR). Takes no argument so
+-- there is no id to tamper with: the caller comes from the JWT.
+create or replace function public.delete_my_account() returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  caller uuid := auth.uid();
 begin
-  if auth.uid() is distinct from target_user_id then raise exception 'not allowed'; end if;
-  delete from auth.users where id = target_user_id;
+  if caller is null then
+    raise exception 'not authenticated';
+  end if;
+  delete from auth.users where id = caller;
 end;
 $$;
-revoke execute on function public.delete_my_account(uuid) from public;
-revoke execute on function public.delete_my_account(uuid) from anon;
-grant execute on function public.delete_my_account(uuid) to authenticated;
+revoke execute on function public.delete_my_account() from public;
+revoke execute on function public.delete_my_account() from anon;
+grant execute on function public.delete_my_account() to authenticated;
+drop function if exists public.delete_my_account(uuid);

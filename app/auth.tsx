@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -13,7 +14,7 @@ import {
   signInWithGoogle,
   signUpWithEmail,
 } from '@/data/auth';
-import { supabaseConfigured } from '@/data/supabase';
+import { supabase, supabaseConfigured } from '@/data/supabase';
 import { toast } from '@/stores/toastStore';
 import { hairline, radii, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -63,6 +64,26 @@ export default function AuthScreen() {
     setBusy(key);
     try {
       await work();
+
+      /*
+       * A successful signUp() call only means the account row now exists -
+       * not that the app is signed in. With email confirmation on (true for
+       * this project: verified by tripping Supabase's confirmation-email
+       * rate limit), no session exists until the user taps the link Supabase
+       * just mailed them. Saying "Account created" and closing the screen
+       * here used to leave the app silently stuck on the guest identity with
+       * nothing telling the user why - it looked like sign-up simply did
+       * nothing. Checking for a real session first is what tells them apart.
+       */
+      if (key === 'email' && mode === 'signUp') {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          toast.show('Almost there - check ' + email.trim() + ' and tap the confirmation link to finish.', 'success');
+          setMode('signIn');
+          return;
+        }
+      }
+
       toast.success(mode === 'signUp' ? 'Account created' : 'Signed in');
       router.back();
     } catch (error) {
@@ -74,8 +95,18 @@ export default function AuthScreen() {
 
   return (
     <Screen>
+      {/*
+        Android's manifest already sets windowSoftInputMode="adjustResize",
+        but that alone still leaves the last field (and the submit button
+        below it) covered on real devices - the classic RN/Android gap where
+        the window resizes but nothing tells the ScrollView to actually
+        scroll the focused field into the visible area. `behavior="height"`
+        is the standard fix: it shrinks this view by the keyboard's height,
+        same as "padding" does on iOS, which is what makes the ScrollView's
+        own scrolling take over from there.
+      */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -233,34 +264,54 @@ function Field({
   autoComplete?: 'email' | 'name' | 'new-password' | 'current-password';
 }) {
   const { colors } = useTheme();
+  const [revealed, setRevealed] = useState(false);
+
   return (
     <View>
       <Text variant="labelSm" colour="onSurfaceVariant" uppercase style={{ marginBottom: spacing.xs }}>
         {label}
       </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={colors.outline}
-        secureTextEntry={secure}
-        keyboardType={keyboardType ?? 'default'}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-        autoComplete={autoComplete}
-        autoCorrect={false}
-        accessibilityLabel={label}
-        style={{
-          height: 52,
-          paddingHorizontal: spacing.md,
-          borderRadius: radii.DEFAULT,
-          backgroundColor: colors.surfaceContainerLow,
-          borderWidth: 1,
-          borderColor: hairline,
-          color: colors.onSurface,
-          fontFamily: 'HankenGrotesk_400Regular',
-          fontSize: 16,
-        }}
-      />
+      <View style={{ justifyContent: 'center' }}>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={colors.outline}
+          secureTextEntry={secure && !revealed}
+          keyboardType={keyboardType ?? 'default'}
+          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+          autoComplete={autoComplete}
+          autoCorrect={false}
+          accessibilityLabel={label}
+          style={{
+            height: 52,
+            paddingHorizontal: spacing.md,
+            paddingRight: secure ? spacing.xl + spacing.md : spacing.md,
+            borderRadius: radii.DEFAULT,
+            backgroundColor: colors.surfaceContainerLow,
+            borderWidth: 1,
+            borderColor: hairline,
+            color: colors.onSurface,
+            fontFamily: 'HankenGrotesk_400Regular',
+            fontSize: 16,
+          }}
+        />
+        {secure ? (
+          <Pressable
+            onPress={() => setRevealed((value) => !value)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            style={{ position: 'absolute', right: spacing.md }}
+          >
+            <Ionicons
+              name={revealed ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color={colors.onSurfaceVariant}
+            />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }

@@ -38,6 +38,11 @@ export function Row({
         backgroundColor: colors.surfaceContainerLow,
         borderBottomWidth: 1,
         borderBottomColor: hairline,
+        // Row is used interchangeably for navigation and plain info display -
+        // without a visual cue, an info-only row (no onPress) sitting next to
+        // tappable ones in the same list reads as a broken link rather than
+        // as intentionally inert.
+        opacity: onPress ? 1 : 0.55,
       }}
     >
       <Ionicons name={icon} size={20} color={destructive ? colors.error : colors.primary} />

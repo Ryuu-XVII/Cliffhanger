@@ -312,11 +312,6 @@ function StepButton({
   );
 }
 
-/** Exposed for the celebration overlay to trigger the same haptic vocabulary. */
-export function celebrateHaptic(): void {
-  haptics.celebrate();
-}
-
 const styles = StyleSheet.create({
   counter: {
     flexDirection: 'row',

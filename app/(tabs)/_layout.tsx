@@ -33,7 +33,12 @@ export default function TabsLayout() {
   return (
     <Tabs
       tabBar={(props) => <FloatingDock {...props} />}
-      screenOptions={{ headerShown: false, animation: 'shift' }}
+      // 'shift' physically slides the outgoing/incoming native Screens past
+      // each other, same failure mode as the Stack's slide animations fixed
+      // above: a not-yet-painted Screen can expose its window background as
+      // a strobe mid-transition. The custom FloatingDock already animates
+      // the active icon/dot, so the tab content itself needs no transition.
+      screenOptions={{ headerShown: false, animation: 'none' }}
     >
       {TABS.map((tab) => (
         <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.label }} />

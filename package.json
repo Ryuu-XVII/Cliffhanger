@@ -67,6 +67,7 @@
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit",
     "check:live": "node scripts/live-check.mjs",
+    "fetch:google-services": "node scripts/fetch-google-services.mjs",
     "smoke:android": "bash scripts/smoke-android.sh"
   },
   "private": true,

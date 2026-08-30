@@ -34,6 +34,7 @@ export async function pullProfile(uid: string): Promise<Partial<UserProfile> | n
   const { data, error } = await supabase.from('profiles').select('data,settings').eq('id', uid).maybeSingle(); fail(error);
   if (!data) return null; return { ...(data.data as Partial<UserProfile> | undefined), settings: data.settings as UserSettings | undefined };
 }
-export async function deleteAllUserData(uid: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_my_account', { target_user_id: uid }); fail(error);
+/** Deletes the calling user; the uid is read from the JWT, never passed in. */
+export async function deleteAllUserData(): Promise<void> {
+  const { error } = await supabase.rpc('delete_my_account'); fail(error);
 }

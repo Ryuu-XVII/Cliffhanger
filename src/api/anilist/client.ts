@@ -1,6 +1,6 @@
 import { ApiError } from '../errors';
 import { request } from '../http';
-import { anilistLimiter } from '../rateLimiter';
+import { anilistLimiter, type RateLimitPriority } from '../rateLimiter';
 
 /**
  * The only place an AniList network call is made. Components never import
@@ -28,7 +28,7 @@ export function hasAniListToken(): boolean {
 export async function anilistRequest<T>(
   query: string,
   variables: Record<string, unknown> = {},
-  options: { authenticated?: boolean } = {},
+  options: { authenticated?: boolean; priority?: RateLimitPriority } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -50,6 +50,7 @@ export async function anilistRequest<T>(
     headers,
     body: JSON.stringify({ query, variables }),
     limiter: anilistLimiter,
+    limiterPriority: options.priority,
   });
 
   let payload: GraphQLResponse<T>;

@@ -81,7 +81,7 @@ export default function ProfileScreen() {
 
           {isAnonymous ? (
             <Button
-              label="Create account"
+              label="Sign in or create account"
               onPress={() => router.push('/auth')}
               fullWidth
               style={{ marginTop: spacing.md }}

@@ -5,8 +5,10 @@ import React, { useRef, useState } from 'react';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { checkPermission, registerPushToken, syncAiringNotifications } from '@/features/notifications/notifications';
 import { markOnboarded } from '@/features/onboarding/state';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { toast } from '@/stores/toastStore';
 import { spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button } from '@/ui/Button';
@@ -49,6 +51,33 @@ export default function Onboarding() {
 
   const titleLanguage = useSettingsStore((state) => state.settings.titleLanguage);
   const update = useSettingsStore((state) => state.update);
+  const [notifChoice, setNotifChoice] = useState<'enabled' | 'declined' | null>(null);
+  const [notifBusy, setNotifBusy] = useState(false);
+
+  const enableNotifications = async () => {
+    if (notifBusy) return;
+    setNotifBusy(true);
+    try {
+      update({ notificationsEnabled: true, notifyOnAiringDefault: true });
+      await registerPushToken();
+      const allowed = await checkPermission();
+      if (!allowed) {
+        update({ notificationsEnabled: false, notifyOnAiringDefault: false });
+        toast.error('Notifications are blocked. Enable them in device settings if you change your mind.');
+        setNotifChoice('declined');
+        return;
+      }
+      void syncAiringNotifications();
+      setNotifChoice('enabled');
+    } finally {
+      setNotifBusy(false);
+    }
+  };
+
+  const declineNotifications = () => {
+    update({ notificationsEnabled: false, notifyOnAiringDefault: false });
+    setNotifChoice('declined');
+  };
 
   const finish = () => {
     markOnboarded();
@@ -115,6 +144,29 @@ export default function Onboarding() {
             <Text variant="bodyLg" colour="onSurfaceVariant" style={{ maxWidth: 340 }}>
               {item.body}
             </Text>
+
+            {index === 1 ? (
+              notifChoice ? (
+                <Text
+                  variant="labelLg"
+                  colour={colors.primary}
+                  style={{ marginTop: spacing.xl }}
+                >
+                  {notifChoice === 'enabled'
+                    ? 'Notifications on. Change this any time in settings.'
+                    : 'Off for now. Turn these on any time in settings.'}
+                </Text>
+              ) : (
+                <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl }}>
+                  <Button
+                    label="Enable notifications"
+                    loading={notifBusy}
+                    onPress={() => void enableNotifications()}
+                  />
+                  <Button label="Not now" variant="secondary" onPress={declineNotifications} />
+                </View>
+              )
+            ) : null}
 
             {index === 2 ? (
               <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl }}>

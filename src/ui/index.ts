@@ -2,6 +2,7 @@ export * from './Button';
 export * from './Celebration';
 export * from './Chip';
 export * from './Cover';
+export * from './ErrorBoundary';
 export * from './Header';
 export * from './Incrementer';
 export * from './Indicators';

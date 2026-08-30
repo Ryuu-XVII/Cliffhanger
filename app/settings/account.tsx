@@ -1,10 +1,20 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { setAniListToken } from '@/api/anilist';
 import { getViewer } from '@/api/anilist';
-import { clearAniListToken, deleteAccount, isAniListConfigured, linkAniList, signOutUser } from '@/data/auth';
+import {
+  clearAniListToken,
+  deleteAccount,
+  isAniListConfigured,
+  linkAniList,
+  signOutUser,
+  updateDisplayName,
+  updateEmail,
+  updatePassword,
+} from '@/data/auth';
 import { supabaseConfigured } from '@/data/supabase';
 import { deleteAllUserData, remoteAvailable } from '@/data/remote';
 import { localStore } from '@/data/localStore';
@@ -13,7 +23,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { toast } from '@/stores/toastStore';
-import { radii, spacing } from '@/theme/tokens';
+import { hairline, radii, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button } from '@/ui/Button';
 import { ScreenHeader } from '@/ui/Header';
@@ -40,6 +50,7 @@ export default function AccountSettingsScreen() {
   const resetSettings = useSettingsStore((state) => state.reset);
 
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState<'name' | 'password' | 'email' | null>(null);
 
   const link = async () => {
     if (!isAniListConfigured()) {
@@ -87,7 +98,7 @@ export default function AccountSettingsScreen() {
     setBusy(true);
     try {
       if (remoteAvailable() && !isAnonymous) {
-        await deleteAllUserData(uid);
+        await deleteAllUserData();
       }
       localStore.clear(uid);
       clearQueue(uid);
@@ -158,15 +169,87 @@ export default function AccountSettingsScreen() {
           )}
         </View>
 
+        {!isAnonymous && supabaseConfigured ? (
+          <Group title="Security">
+            <Row
+              icon="person-outline"
+              label="Change display name"
+              hint="Shown in headers and to other AniList-linked users"
+              onPress={() => setExpanded(expanded === 'name' ? null : 'name')}
+            />
+            {expanded === 'name' ? (
+              <CredentialForm
+                key="name"
+                busy={busy}
+                setBusy={setBusy}
+                fieldLabel="Display name"
+                placeholder="What should we call you?"
+                submitLabel="Save name"
+                onSubmit={async (value) => {
+                  await updateDisplayName(value.trim());
+                  toast.success('Name updated');
+                  setExpanded(null);
+                }}
+              />
+            ) : null}
+
+            <Row
+              icon="key-outline"
+              label="Change password"
+              hint="Update the password you sign in with"
+              onPress={() => setExpanded(expanded === 'password' ? null : 'password')}
+            />
+            {expanded === 'password' ? (
+              <CredentialForm
+                key="password"
+                busy={busy}
+                setBusy={setBusy}
+                fieldLabel="New password"
+                secure
+                placeholder="At least 8 characters"
+                submitLabel="Update password"
+                onSubmit={async (value) => {
+                  await updatePassword(value);
+                  toast.success('Password updated');
+                  setExpanded(null);
+                }}
+              />
+            ) : null}
+
+            <Row
+              icon="mail-outline"
+              label="Change email"
+              hint="We will send a confirmation link to the new address"
+              onPress={() => setExpanded(expanded === 'email' ? null : 'email')}
+            />
+            {expanded === 'email' ? (
+              <CredentialForm
+                key="email"
+                busy={busy}
+                setBusy={setBusy}
+                fieldLabel="New email"
+                keyboardType="email-address"
+                placeholder="you@example.com"
+                submitLabel="Send confirmation link"
+                onSubmit={async (value) => {
+                  await updateEmail(value.trim());
+                  toast.success('Check ' + value.trim() + ' to confirm the change');
+                  setExpanded(null);
+                }}
+              />
+            ) : null}
+          </Group>
+        ) : null}
+
         <Group title="Linked services">
           <Row
             icon="link-outline"
             label="AniList"
             hint={
               linked.anilist
-                ? 'Linked as ' + linked.anilist.userName
+                ? 'Linked as ' + linked.anilist.userName + '. Your edits sync to AniList automatically.'
                 : isAniListConfigured()
-                  ? 'Read and write your real AniList list'
+                  ? 'Two-way sync with your real AniList list'
                   : 'Not configured in this build'
             }
             onPress={linked.anilist ? () => void unlink() : () => void link()}
@@ -184,6 +267,12 @@ export default function AccountSettingsScreen() {
             label="Export your library"
             hint="JSON or MAL-compatible XML"
             onPress={() => router.push('/settings/data')}
+          />
+          <Row
+            icon="shield-checkmark-outline"
+            label="Privacy policy"
+            hint="What we store, and what we never collect"
+            onPress={() => router.push('/settings/privacy')}
           />
           <Row
             icon="trash-outline"
@@ -205,6 +294,100 @@ export default function AccountSettingsScreen() {
         </Text>
       </ScrollView>
     </Screen>
+  );
+}
+
+function CredentialForm({
+  fieldLabel,
+  placeholder,
+  submitLabel,
+  onSubmit,
+  busy,
+  setBusy,
+  secure = false,
+  keyboardType,
+}: {
+  fieldLabel: string;
+  placeholder: string;
+  submitLabel: string;
+  onSubmit: (value: string) => Promise<void>;
+  busy: boolean;
+  setBusy: (busy: boolean) => void;
+  secure?: boolean;
+  keyboardType?: 'email-address' | 'default';
+}) {
+  const { colors } = useTheme();
+  const [value, setValue] = useState('');
+  const [revealed, setRevealed] = useState(false);
+
+  const submit = async () => {
+    if (!value.trim() || busy) return;
+    setBusy(true);
+    try {
+      await onSubmit(value);
+      setValue('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'That did not work.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View
+      style={{
+        padding: spacing.md,
+        backgroundColor: colors.surfaceContainerLow,
+        borderBottomWidth: 1,
+        borderBottomColor: hairline,
+        gap: spacing.sm,
+      }}
+    >
+      <Text variant="labelSm" colour="onSurfaceVariant" uppercase>
+        {fieldLabel}
+      </Text>
+      <View style={{ justifyContent: 'center' }}>
+        <TextInput
+          value={value}
+          onChangeText={setValue}
+          placeholder={placeholder}
+          placeholderTextColor={colors.outline}
+          secureTextEntry={secure && !revealed}
+          keyboardType={keyboardType ?? 'default'}
+          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+          autoCorrect={false}
+          accessibilityLabel={fieldLabel}
+          style={{
+            height: 52,
+            paddingHorizontal: spacing.md,
+            paddingRight: secure ? spacing.xl + spacing.md : spacing.md,
+            borderRadius: radii.DEFAULT,
+            backgroundColor: colors.surfaceContainerHigh,
+            borderWidth: 1,
+            borderColor: hairline,
+            color: colors.onSurface,
+            fontFamily: 'HankenGrotesk_400Regular',
+            fontSize: 16,
+          }}
+        />
+        {secure ? (
+          <Pressable
+            onPress={() => setRevealed((v) => !v)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            style={{ position: 'absolute', right: spacing.md }}
+          >
+            <Ionicons
+              name={revealed ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color={colors.onSurfaceVariant}
+            />
+          </Pressable>
+        ) : null}
+      </View>
+      <Button label={submitLabel} onPress={() => void submit()} loading={busy} fullWidth />
+    </View>
   );
 }
 

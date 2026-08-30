@@ -26,6 +26,8 @@
     },
     "android": {
       "package": "com.adnaan.cliffhanger",
+      "versionCode": 1,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -44,6 +46,7 @@
       "bundler": "metro"
     },
     "plugins": [
+      "./plugins/withReleaseSigning",
       "expo-router",
       "expo-font",
       "expo-localization",

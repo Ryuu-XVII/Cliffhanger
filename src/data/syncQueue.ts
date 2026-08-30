@@ -25,6 +25,12 @@ export interface SyncOp {
   queuedAt: number;
   attempts: number;
   lastError: string | null;
+  /**
+   * Where the change came from. F-23 mirrors local edits out to AniList, so an
+   * entry that arrived *from* AniList must not be echoed straight back - it is
+   * already the remote truth, and bouncing it wastes a rate-limited write.
+   */
+  origin?: 'local' | 'anilist';
 }
 
 const QUEUE_KEY = (uid: string): string => 'sync:' + uid + ':queue';

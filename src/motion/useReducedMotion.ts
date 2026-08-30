@@ -34,23 +34,3 @@ export function useReducedMotion(): boolean {
   return osReduced || appReduced;
 }
 
-/** Screen-reader state, used to swap gesture-only affordances for buttons. */
-export function useScreenReaderEnabled(): boolean {
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isScreenReaderEnabled()
-      .then((v) => {
-        if (alive) setEnabled(v);
-      })
-      .catch(() => undefined);
-    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', setEnabled);
-    return () => {
-      alive = false;
-      sub.remove();
-    };
-  }, []);
-
-  return enabled;
-}

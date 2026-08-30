@@ -14,39 +14,12 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { blurIntensity, hairline, radii, spacing } from '@/theme/tokens';
 
 /**
- * The four elevation levels from DESIGN.md, as components.
- * Level 0 The Void, 1 The Plate, 2 The Glass, 3 The Focus (shared-element hero,
- * handled by the transition itself rather than a container).
+ * The elevation levels from DESIGN.md, as components.
+ * Level 0 The Void, 2 The Glass, 3 The Focus (shared-element hero, handled by
+ * the transition itself rather than a container). Level 1 "The Plate" had a
+ * component here too, but nothing ever rendered it - screens compose that
+ * surface inline - so it was removed rather than left as a decoy.
  */
-
-export interface PlateProps extends ViewProps {
-  /** Adds the 1px top-lit inner border that fakes a light source from above. */
-  lit?: boolean;
-  radius?: number;
-  padded?: boolean | number;
-}
-
-/** Level 1 - the primary container for lists and feeds. */
-export function Plate({ lit = true, radius = radii.md, padded, style, ...rest }: PlateProps) {
-  const { colors } = useTheme();
-  const padding = padded === true ? spacing.md : padded === false || padded === undefined ? 0 : padded;
-
-  return (
-    <View
-      {...rest}
-      style={[
-        {
-          backgroundColor: colors.surfaceContainerLow,
-          borderRadius: radius,
-          padding,
-          overflow: 'hidden',
-        },
-        lit ? { borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: hairline } : null,
-        style,
-      ]}
-    />
-  );
-}
 
 export interface GlassProps extends ViewProps {
   radius?: number;

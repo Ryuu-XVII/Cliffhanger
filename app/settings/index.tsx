@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { ScrollView, Switch, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, Switch, TextInput, View } from 'react-native';
 
+import { cacheClear } from '@/api/cache';
 import type { ScoreFormat, TitleLanguage } from '@/data/models';
 import { resetOnboarding } from '@/features/onboarding/state';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { toast } from '@/stores/toastStore';
-import { accents, radii, spacing, type AccentId } from '@/theme/tokens';
+import { accents, hairline, radii, spacing, type AccentId } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Chip } from '@/ui/Chip';
 import { ScreenHeader } from '@/ui/Header';
@@ -14,6 +15,13 @@ import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { PressableScale } from '@/ui/PressableScale';
 import { Row } from '@/ui/Row';
+
+const STREAMING_REGIONS: Array<[string, string]> = [
+  ['ZA', 'South Africa'],
+  ['US', 'United States'],
+  ['GB', 'United Kingdom'],
+  ['JP', 'Japan'],
+];
 
 /**
  * F-11 title language, F-06 score format, F-28 theming, plus the motion and
@@ -24,6 +32,9 @@ export default function SettingsScreen() {
   const { colors } = useTheme();
   const settings = useSettingsStore((state) => state.settings);
   const update = useSettingsStore((state) => state.update);
+
+  const knownRegion = STREAMING_REGIONS.some(([code]) => code === settings.streamingRegion);
+  const [customRegion, setCustomRegion] = useState(knownRegion ? '' : settings.streamingRegion);
 
   return (
     <Screen>
@@ -134,6 +145,64 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        <Section title="Streaming region" hint="Orders streaming links on a title's page by what's likely available there.">
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm }}>
+            {STREAMING_REGIONS.map(([code, label]) => (
+              <Chip
+                key={code}
+                label={label}
+                selected={settings.streamingRegion === code}
+                onPress={() => {
+                  setCustomRegion('');
+                  update({ streamingRegion: code });
+                }}
+              />
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <TextInput
+              value={customRegion}
+              onChangeText={(value) => setCustomRegion(value.toUpperCase())}
+              placeholder="Other ISO code, e.g. DE"
+              placeholderTextColor={colors.outline}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={2}
+              accessibilityLabel="Custom streaming region code"
+              style={{
+                flex: 1,
+                height: 44,
+                paddingHorizontal: spacing.sm,
+                borderRadius: radii.DEFAULT,
+                backgroundColor: colors.surfaceContainerHigh,
+                borderWidth: 1,
+                borderColor: hairline,
+                color: colors.onSurface,
+                fontFamily: 'HankenGrotesk_400Regular',
+                fontSize: 16,
+              }}
+            />
+            <PressableScale
+              onPress={() => {
+                if (customRegion.trim().length !== 2) {
+                  toast.error('Use a 2-letter ISO region code, like DE');
+                  return;
+                }
+                update({ streamingRegion: customRegion.trim() });
+                toast.success('Streaming region updated');
+              }}
+              scaleTo={0.95}
+              accessibilityRole="button"
+              accessibilityLabel="Set custom streaming region"
+              style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}
+            >
+              <Text variant="labelLg" colour={colors.primary} uppercase>
+                Set
+              </Text>
+            </PressableScale>
+          </View>
+        </Section>
+
         <Section title="More">
           <Row
             icon="notifications-outline"
@@ -154,12 +223,33 @@ export default function SettingsScreen() {
             onPress={() => router.push('/settings/account')}
           />
           <Row
+            icon="shield-checkmark-outline"
+            label="Privacy"
+            hint="What we store, and what we never collect"
+            onPress={() => router.push('/settings/privacy')}
+          />
+          <Row
             icon="refresh-outline"
             label="Replay the intro"
             onPress={() => {
               resetOnboarding();
               toast.show('The intro will show next launch');
             }}
+          />
+          <Row
+            icon="trash-bin-outline"
+            label="Clear cache"
+            hint="Titles, seasons and search results only - your library is untouched"
+            onPress={() => {
+              cacheClear();
+              toast.show('Cache cleared');
+            }}
+          />
+          <Row
+            icon="information-circle-outline"
+            label="About"
+            hint="Version, build"
+            onPress={() => router.push('/settings/about')}
           />
         </Section>
       </ScrollView>

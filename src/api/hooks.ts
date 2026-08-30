@@ -2,10 +2,11 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
 import { useSettingsStore } from '@/stores/settingsStore';
-import type { AniListSeason } from './anilist/types';
+import type { AniListMedia, AniListSeason } from './anilist/types';
 import {
   discover,
   getAiringSchedule,
+  getCachedMediaLite,
   getGenres,
   getMedia,
   getMediaTags,
@@ -59,25 +60,49 @@ export function useDebounced<T>(value: T, delayMs = 300): T {
   return debounced;
 }
 
-interface SearchOptions {
-  format?: string;
+export interface SearchOptions {
+  format?: string[];
+  status?: string[];
   genre?: string[];
   tag?: string[];
+  source?: string[];
+  excludeGenre?: string[];
+  excludeTag?: string[];
+  minimumTagRank?: number;
   season?: AniListSeason;
   seasonYear?: number;
-  status?: string;
+  yearFrom?: number;
+  yearTo?: number;
+  minScore?: number;
+  minEpisodes?: number;
+  maxEpisodes?: number;
+  maxDuration?: number;
+  countryOfOrigin?: string;
   sort?: string[];
   type?: 'ANIME' | 'MANGA';
 }
 
 function hasSearchFilters(options: SearchOptions): boolean {
+  const lists = [
+    options.format,
+    options.status,
+    options.genre,
+    options.tag,
+    options.source,
+    options.excludeGenre,
+    options.excludeTag,
+  ];
+  if (lists.some((list) => list && list.length > 0)) return true;
   return Boolean(
-    options.format ||
-      (options.genre && options.genre.length > 0) ||
-      (options.tag && options.tag.length > 0) ||
-      options.season ||
+    options.season ||
       options.seasonYear ||
-      options.status,
+      options.yearFrom ||
+      options.yearTo ||
+      options.minScore ||
+      options.minEpisodes ||
+      options.maxEpisodes ||
+      options.maxDuration ||
+      options.countryOfOrigin,
   );
 }
 
@@ -145,6 +170,15 @@ export function useMedia(id: number | null) {
     queryKey: ['media', id],
     enabled: id !== null,
     queryFn: () => getMedia(id as number),
+    // A title just tapped from a search/discover grid was already cached in
+    // its lighter MediaLite shape - reusing it here means the screen paints
+    // the real title, cover and score immediately instead of "Untitled"
+    // while the much heavier full query (synopsis, characters, staff,
+    // recommendations) is still in flight. It shares every field the detail
+    // screen actually reads before the real data lands; TanStack Query
+    // discards it the moment the real query resolves.
+    placeholderData:
+      id === null ? undefined : ((getCachedMediaLite(id) ?? undefined) as AniListMedia | undefined),
     staleTime: STALE.title,
     retry: retryPolicy,
   });
@@ -222,9 +256,10 @@ export function useGenres() {
 }
 
 export function useMediaTags() {
+  const includeAdult = useSettingsStore((state) => state.settings.showAdult);
   return useQuery({
-    queryKey: ['media-tags'],
-    queryFn: getMediaTags,
+    queryKey: ['media-tags', includeAdult],
+    queryFn: () => getMediaTags(includeAdult),
     staleTime: 30 * 24 * 60 * 60 * 1000,
     retry: retryPolicy,
   });

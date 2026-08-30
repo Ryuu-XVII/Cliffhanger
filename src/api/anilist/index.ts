@@ -8,6 +8,7 @@ import {
   GENRES_QUERY,
   MEDIA_DETAIL_QUERY,
   MEDIA_LIST_COLLECTION_QUERY,
+  MEDIA_LIST_ENTRY_ID_QUERY,
   SAVE_MEDIA_LIST_ENTRY_MUTATION,
   SEARCH_QUERY,
   STUDIO_MEDIA_QUERY,
@@ -36,12 +37,31 @@ export interface SearchParams {
   query: string;
   page?: number;
   type?: 'ANIME' | 'MANGA';
-  format?: string;
+  /** Multi-select. Empty or omitted means "any". */
+  format?: string[];
+  status?: string[];
   genre?: string[];
   tag?: string[];
+  source?: string[];
+  /** Exclusions - titles carrying any of these are filtered out. */
+  excludeGenre?: string[];
+  excludeTag?: string[];
+  /** 0-100. Guards against loose matches on a barely-relevant tag. */
+  minimumTagRank?: number;
   season?: AniListSeason;
+  /** A single year. Use yearFrom/yearTo for a range; they are mutually exclusive. */
   seasonYear?: number;
-  status?: string;
+  yearFrom?: number;
+  yearTo?: number;
+  minScore?: number;
+  /**
+   * Episodes for anime, chapters for manga - the API splits these into two
+   * argument pairs, but they are one idea to the user (see unitNoun).
+   */
+  minEpisodes?: number;
+  maxEpisodes?: number;
+  maxDuration?: number;
+  countryOfOrigin?: string;
   sort?: string[];
   includeAdult?: boolean;
 }
@@ -52,12 +72,37 @@ export interface Paged<T> {
   page: number;
 }
 
+/*
+ * Deliberately absent: a `total`.
+ *
+ * AniList's pageInfo.total cannot be trusted and must not be surfaced. Verified
+ * against the live API with genre_in:[Mecha], seasonYear:2016, perPage:20 - a
+ * set that really holds 26 titles:
+ *
+ *   page 1 -> total 5000, lastPage 250, hasNextPage true
+ *   page 2 -> total 26,   lastPage 2,   hasNextPage false
+ *   page 3 -> total 40,   lastPage 3,   hasNextPage false
+ *
+ * So it is a placeholder until the final page, and past the end it keeps
+ * climbing. Showing it would tell a user "5,000+ results" for 26 matches.
+ * Count loaded items instead, and say "N+" while hasNextPage is true.
+ */
+
 function page<T>(result: AniListPage<T> | null | undefined, currentPage: number): Paged<T> {
   return {
     items: result?.media?.filter((item): item is T => item !== null) ?? [],
     hasNextPage: result?.pageInfo?.hasNextPage ?? false,
     page: currentPage,
   };
+}
+
+/** FuzzyDateInt is YYYYMMDD packed into an Int. */
+function fuzzyDateInt(year: number, month: number, day: number): number {
+  return year * 10000 + month * 100 + day;
+}
+
+function nonEmpty(values: string[] | undefined): string[] | undefined {
+  return values && values.length > 0 ? values : undefined;
 }
 
 /** F-01. Callers debounce; this layer caches so back-navigation is free. */
@@ -67,32 +112,76 @@ export async function searchMedia(params: SearchParams): Promise<Paged<AniListMe
     page: pageNumber = 1,
     type = 'ANIME',
     format,
+    status,
     genre,
     tag,
+    source,
+    excludeGenre,
+    excludeTag,
+    minimumTagRank,
     season,
     seasonYear,
-    status,
+    yearFrom,
+    yearTo,
+    minScore,
+    minEpisodes,
+    maxEpisodes,
+    maxDuration,
+    countryOfOrigin,
     sort = ['SEARCH_MATCH', 'POPULARITY_DESC'],
     includeAdult = false,
   } = params;
 
   const trimmed = query.trim();
   const hasFilter = Boolean(
-    format || (genre && genre.length > 0) || (tag && tag.length > 0) || season || seasonYear || status,
+    nonEmpty(format) ||
+      nonEmpty(status) ||
+      nonEmpty(genre) ||
+      nonEmpty(tag) ||
+      nonEmpty(source) ||
+      nonEmpty(excludeGenre) ||
+      nonEmpty(excludeTag) ||
+      season ||
+      seasonYear ||
+      yearFrom ||
+      yearTo ||
+      minScore ||
+      minEpisodes ||
+      maxEpisodes ||
+      maxDuration ||
+      countryOfOrigin,
   );
-  if (trimmed.length === 0 && !hasFilter) return { items: [], hasNextPage: false, page: pageNumber };
+  if (trimmed.length === 0 && !hasFilter) {
+    return { items: [], hasNextPage: false, page: pageNumber };
+  }
+
+  // A range is expressed as start-date bounds; a single year keeps using
+  // seasonYear so it can pair with a season.
+  const startDateGreater = yearFrom ? fuzzyDateInt(yearFrom, 1, 1) : undefined;
+  const startDateLesser = yearTo ? fuzzyDateInt(yearTo, 12, 31) : undefined;
 
   const key = [
     'anilist:search',
     type,
     trimmed.toLowerCase(),
     pageNumber,
-    format ?? '',
+    (format ?? []).join('|'),
+    (status ?? []).join('|'),
     (genre ?? []).join('|'),
     (tag ?? []).join('|'),
+    (source ?? []).join('|'),
+    (excludeGenre ?? []).join('|'),
+    (excludeTag ?? []).join('|'),
+    minimumTagRank ?? '',
     season ?? '',
     seasonYear ?? '',
-    status ?? '',
+    yearFrom ?? '',
+    yearTo ?? '',
+    minScore ?? '',
+    minEpisodes ?? '',
+    maxEpisodes ?? '',
+    maxDuration ?? '',
+    countryOfOrigin ?? '',
     sort.join(','),
     includeAdult ? 'adult' : 'sfw',
   ].join(':');
@@ -104,19 +193,67 @@ export async function searchMedia(params: SearchParams): Promise<Paged<AniListMe
       perPage: PER_PAGE,
       type,
       isAdult: includeAdult ? undefined : false,
-      format: format ?? undefined,
-      genre_in: genre && genre.length > 0 ? genre : undefined,
-      tag_in: tag && tag.length > 0 ? tag : undefined,
+      format_in: nonEmpty(format),
+      status_in: nonEmpty(status),
+      genre_in: nonEmpty(genre),
+      genre_not_in: nonEmpty(excludeGenre),
+      tag_in: nonEmpty(tag),
+      tag_not_in: nonEmpty(excludeTag),
+      // Only meaningful alongside an included tag.
+      minimumTagRank: nonEmpty(tag) ? minimumTagRank : undefined,
       season: season ?? undefined,
       seasonYear: seasonYear ?? undefined,
-      status: status ?? undefined,
+      startDate_greater: startDateGreater,
+      startDate_lesser: startDateLesser,
+      averageScore_greater: minScore ?? undefined,
+      // One "unit count" filter, routed to whichever pair the type uses.
+      episodes_greater: type === 'ANIME' ? (minEpisodes ?? undefined) : undefined,
+      episodes_lesser: type === 'ANIME' ? (maxEpisodes ?? undefined) : undefined,
+      chapters_greater: type === 'MANGA' ? (minEpisodes ?? undefined) : undefined,
+      chapters_lesser: type === 'MANGA' ? (maxEpisodes ?? undefined) : undefined,
+      duration_lesser: type === 'ANIME' ? (maxDuration ?? undefined) : undefined,
+      source_in: nonEmpty(source),
+      countryOfOrigin: countryOfOrigin ?? undefined,
       sort,
-    });
+    }, { priority: 'high' });
     const result = page(data.Page, pageNumber);
     // Warm the per-title cache so tapping a result renders instantly.
     for (const item of result.items) primeMediaLite(item);
+
+    // AniList's own search is fairly literal - a query carrying one word the
+    // official title does not (an extra qualifier like "season 2", or a word
+    // order AniList's index does not expect) often returns nothing at all
+    // rather than a fuzzy near-match. One bounded retry with a relaxed query
+    // catches that common case without turning every search into a fan-out:
+    // relaxQuery always returns a strictly shorter query or null, so this
+    // recurses at most a handful of times before giving up.
+    if (result.items.length === 0 && !hasFilter && pageNumber === 1) {
+      const relaxed = relaxQuery(trimmed);
+      if (relaxed) return searchMedia({ ...params, query: relaxed });
+    }
     return result;
   });
+}
+
+/** Words common enough in an English title that a search missing them should still match. */
+const SEARCH_STOP_WORDS = new Set(['the', 'a', 'an', 'of', 'and', 'to', 'in', 'on']);
+
+/**
+ * Widens a failed search query by one step: first by dropping filler words
+ * ("the", "of", ...), then - once there are none left to drop - by dropping
+ * the last word, since a common miss is a trailing qualifier ("movie",
+ * "part 2") that is not actually part of the title AniList has on file.
+ * Returns null once there is nothing left worth trying.
+ */
+export function relaxQuery(trimmed: string): string | null {
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return null;
+
+  const withoutStopWords = words.filter((word) => !SEARCH_STOP_WORDS.has(word.toLowerCase()));
+  if (withoutStopWords.length > 0 && withoutStopWords.length < words.length) {
+    return withoutStopWords.join(' ');
+  }
+  return words.slice(0, -1).join(' ') || null;
 }
 
 /** F-02. Finished series get the 30-day tier (§4.5.2). */
@@ -124,7 +261,11 @@ export async function getMedia(id: number): Promise<AniListMedia> {
   const key = 'anilist:media:' + id;
 
   return withCache(key, TTL.title, async () => {
-    const data = await anilistRequest<{ Media: AniListMedia | null }>(MEDIA_DETAIL_QUERY, { id });
+    const data = await anilistRequest<{ Media: AniListMedia | null }>(
+      MEDIA_DETAIL_QUERY,
+      { id },
+      { priority: 'high' },
+    );
     if (!data.Media) throw new Error('Media ' + id + ' not found');
     const media = data.Media;
     // Re-stamp with the longer TTL when the series can never change again.
@@ -210,6 +351,7 @@ export async function searchStudios(query: string): Promise<AniListStudio[]> {
     const data = await anilistRequest<{ Page: { studios: AniListStudio[] | null } | null }>(
       STUDIO_SEARCH_QUERY,
       { search: trimmed, page: 1, perPage: 8 },
+      { priority: 'high' },
     );
     return data.Page?.studios?.filter((studio): studio is AniListStudio => studio !== null) ?? [];
   });
@@ -231,7 +373,7 @@ export async function getStudioMedia(
   return withCache(key, TTL.browse, async () => {
     const data = await anilistRequest<{
       Studio: { name: string; media: { pageInfo: AniListPageInfo | null; nodes: (AniListMediaLite | null)[] } } | null;
-    }>(STUDIO_MEDIA_QUERY, { id: studioId, page: pageNumber, perPage: PER_PAGE, sort });
+    }>(STUDIO_MEDIA_QUERY, { id: studioId, page: pageNumber, perPage: PER_PAGE, sort }, { priority: 'high' });
 
     const nodes = (data.Studio?.media.nodes ?? []).filter(
       (item): item is AniListMediaLite => item !== null && (includeAdult || !item.isAdult),
@@ -320,11 +462,18 @@ export function getGenres(): Promise<string[]> {
   });
 }
 
-export function getMediaTags(): Promise<AniListMediaTag[]> {
-  return withCache('anilist:media-tags', TTL.finishedTitle, async () => {
+/**
+ * Spoiler tags stay hidden always - a tag picker is no place to learn a twist.
+ * Adult tags follow the user's Show Adult setting, so the tag list agrees with
+ * the genre list instead of silently hiding more than the genre list does.
+ */
+export function getMediaTags(includeAdult = false): Promise<AniListMediaTag[]> {
+  const key = 'anilist:media-tags:' + (includeAdult ? 'adult' : 'sfw');
+  return withCache(key, TTL.finishedTitle, async () => {
     const data = await anilistRequest<{ MediaTagCollection: AniListMediaTag[] | null }>(TAGS_QUERY);
     return (data.MediaTagCollection ?? []).filter(
-      (tag) => !tag.isAdult && !tag.isGeneralSpoiler && !tag.isMediaSpoiler,
+      (tag) =>
+        (includeAdult || !tag.isAdult) && !tag.isGeneralSpoiler && !tag.isMediaSpoiler,
     );
   });
 }
@@ -419,6 +568,26 @@ export async function saveMediaListEntry(input: SaveEntryInput): Promise<{ id: n
   return data.SaveMediaListEntry;
 }
 
+/**
+ * The viewer's list-entry id for a title, or null when it is not on their list.
+ * Needed because deletions are keyed by list-entry id, not media id.
+ */
+export async function getMediaListEntryId(mediaId: number): Promise<number | null> {
+  const data = await anilistRequest<{ Media: { mediaListEntry: { id: number } | null } | null }>(
+    MEDIA_LIST_ENTRY_ID_QUERY,
+    { mediaId },
+    { authenticated: true },
+  );
+  return data.Media?.mediaListEntry?.id ?? null;
+}
+
+/** F-23: mirror a local removal onto AniList. No-ops if it was never on the list. */
+export async function deleteMediaListEntryByMediaId(mediaId: number): Promise<boolean> {
+  const id = await getMediaListEntryId(mediaId);
+  if (id === null) return false;
+  return deleteMediaListEntry(id);
+}
+
 export async function deleteMediaListEntry(id: number): Promise<boolean> {
   const data = await anilistRequest<{ DeleteMediaListEntry: { deleted: boolean | null } | null }>(
     DELETE_MEDIA_LIST_ENTRY_MUTATION,
@@ -433,6 +602,13 @@ function primeMediaLite(media: AniListMediaLite): void {
   cacheSet('anilist:lite:' + media.id, media, TTL.title);
 }
 
+/**
+ * A title just seen in a search/discover grid was already primed above - the
+ * detail screen uses this as placeholder data so it can paint the real title,
+ * cover and score immediately instead of "Untitled" while `getMedia`'s much
+ * heavier query (synopsis, characters, staff, recommendations) is in flight.
+ */
 export function getCachedMediaLite(id: number): AniListMediaLite | null {
-  return cacheGet<AniListMediaLite>('anilist:lite:' + id, { allowStale: true });
+  return cacheGet<AniListMediaLite>('anilist:lite:' + id);
 }
+

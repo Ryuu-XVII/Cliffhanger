@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import React, { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 
 import {
   buildJsonExport,
@@ -47,6 +47,9 @@ export default function DataSettingsScreen() {
     }
   };
 
+  const spinner = (key: string) =>
+    busy === key ? <ActivityIndicator color={colors.primary} /> : undefined;
+
   return (
     <Screen>
       <ScreenHeader title="Import and export" showBack />
@@ -71,6 +74,7 @@ export default function DataSettingsScreen() {
             icon="code-download-outline"
             label="Export as JSON"
             hint="Everything, exactly as stored"
+            trailing={spinner('json')}
             onPress={() =>
               void run('json', async () => {
                 await shareExport(
@@ -86,6 +90,7 @@ export default function DataSettingsScreen() {
             icon="document-outline"
             label="Export as MAL XML"
             hint="Imports into MyAnimeList and most trackers"
+            trailing={spinner('xml')}
             onPress={() =>
               void run('xml', async () => {
                 await shareExport(
@@ -104,6 +109,7 @@ export default function DataSettingsScreen() {
             icon="cloud-download-outline"
             label="Import from AniList"
             hint={linked.anilist ? 'Linked as ' + linked.anilist.userName : 'Link your AniList account first'}
+            trailing={spinner('anilist')}
             onPress={() =>
               void run('anilist', async () => {
                 if (!linked.anilist) {
@@ -121,6 +127,7 @@ export default function DataSettingsScreen() {
             icon="sync-outline"
             label="Sync local changes to AniList"
             hint={linked.anilist ? 'Pushes progress, scores and notes' : 'Link your AniList account first'}
+            trailing={spinner('anilist-push')}
             onPress={() =>
               void run('anilist-push', async () => {
                 if (!linked.anilist) {
@@ -136,6 +143,7 @@ export default function DataSettingsScreen() {
             icon="folder-open-outline"
             label="Import a MAL XML file"
             hint="From a MyAnimeList export"
+            trailing={spinner('mal')}
             onPress={() =>
               void run('mal', async () => {
                 const picked = await DocumentPicker.getDocumentAsync({

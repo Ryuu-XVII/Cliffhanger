@@ -1,5 +1,5 @@
 import { ApiError } from './errors';
-import { RateLimiter, sleep } from './rateLimiter';
+import { RateLimiter, sleep, type RateLimitPriority } from './rateLimiter';
 
 /**
  * The single outbound HTTP path (§3.3). Every call gets: a timeout, retry with
@@ -7,7 +7,7 @@ import { RateLimiter, sleep } from './rateLimiter';
  * limiter, and an identifying User-Agent (§4.5.5).
  */
 
-export const USER_AGENT = 'Cliffhanger/1.0 (anime tracker; contact: adnaanhoosen51@gmail.com)';
+export const USER_AGENT = 'Cliffhanger/1.0 (anime tracker; contact: hello@cliffhanger.app)';
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_RETRIES = 2;
@@ -25,6 +25,13 @@ export interface RequestOptions extends Omit<RequestInit, 'signal'> {
   timeoutMs?: number;
   retries?: number;
   limiter?: RateLimiter;
+  /**
+   * A request the user is actively waiting on jumps the limiter's queue ahead
+   * of background prefetch. Named distinctly from fetch's own RequestInit
+   * `priority` (a browser scheduling hint we don't use) to avoid colliding
+   * with it.
+   */
+  limiterPriority?: RateLimitPriority;
   /** Skip the offline short-circuit (used by the connectivity probe itself). */
   ignoreOffline?: boolean;
 }
@@ -34,6 +41,7 @@ export async function request(url: string, options: RequestOptions = {}): Promis
     timeoutMs = DEFAULT_TIMEOUT_MS,
     retries = DEFAULT_RETRIES,
     limiter,
+    limiterPriority = 'normal',
     ignoreOffline = false,
     headers,
     ...init
@@ -47,7 +55,7 @@ export async function request(url: string, options: RequestOptions = {}): Promis
   let lastError: unknown;
 
   while (attempt <= retries) {
-    if (limiter) await limiter.acquire();
+    if (limiter) await limiter.acquire(limiterPriority);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);

@@ -25,4 +25,19 @@ describe('rate limiter', () => {
     await limiter.acquire();
     expect(Date.now() - started).toBeGreaterThanOrEqual(150);
   });
+
+  it('serves a high-priority request ahead of already-queued normal ones', async () => {
+    // Empty the bucket first so every acquire() below actually has to queue
+    // and wait for a refill, which is what makes ordering observable.
+    const limiter = new RateLimiter(1, 1 / 200);
+    await limiter.acquire();
+
+    const order: string[] = [];
+    const normalA = limiter.acquire().then(() => order.push('normal-a'));
+    const normalB = limiter.acquire().then(() => order.push('normal-b'));
+    const high = limiter.acquire('high').then(() => order.push('high'));
+
+    await Promise.all([normalA, normalB, high]);
+    expect(order).toEqual(['high', 'normal-a', 'normal-b']);
+  });
 });

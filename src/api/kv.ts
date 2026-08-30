@@ -28,26 +28,33 @@ function createMemoryStore(): KeyValueStore {
 
 function createStore(): KeyValueStore {
   try {
+    // react-native-mmkv v4 replaced the old `new MMKV({id})` class API with a
+    // `createMMKV({id})` factory, and renamed `.delete(key)` to `.remove(key)` -
+    // the previous code here was still written against the v2/v3 shape, so
+    // `MMKV` destructured to `undefined` and every launch silently fell back
+    // to the in-memory store, resetting anything local-only (onboarding,
+    // caches) on every cold start.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { MMKV } = require('react-native-mmkv') as {
-      MMKV: new (config: { id: string }) => {
+    const { createMMKV } = require('react-native-mmkv') as {
+      createMMKV: (config: { id: string }) => {
         getString(key: string): string | undefined;
         set(key: string, value: string): void;
-        delete(key: string): void;
+        remove(key: string): boolean;
         getAllKeys(): string[];
         clearAll(): void;
       };
     };
-    const mmkv = new MMKV({ id: 'cliffhanger' });
+    const mmkv = createMMKV({ id: 'cliffhanger' });
     return {
       getString: (key) => mmkv.getString(key),
       set: (key, value) => mmkv.set(key, value),
-      delete: (key) => mmkv.delete(key),
+      delete: (key) => void mmkv.remove(key),
       getAllKeys: () => mmkv.getAllKeys(),
       clearAll: () => mmkv.clearAll(),
       isPersistent: true,
     };
-  } catch {
+  } catch (error) {
+    console.error('[kv] MMKV unavailable, falling back to in-memory store', error);
     return createMemoryStore();
   }
 }
@@ -57,11 +64,6 @@ let instance: KeyValueStore | null = null;
 export function kv(): KeyValueStore {
   if (!instance) instance = createStore();
   return instance;
-}
-
-/** Test seam. */
-export function __setKvForTests(store: KeyValueStore | null): void {
-  instance = store;
 }
 
 export function readJson<T>(key: string): T | null {

@@ -44,10 +44,6 @@ export function cacheSet<T>(key: string, data: T, ttlMs: number): void {
   writeJson(PREFIX + key, { data, fetchedAt: now, expiresAt: now + ttlMs } satisfies Envelope<T>);
 }
 
-export function cacheDelete(key: string): void {
-  kv().delete(PREFIX + key);
-}
-
 export function cacheClear(): void {
   for (const key of kv().getAllKeys()) {
     if (key.startsWith(PREFIX)) kv().delete(key);

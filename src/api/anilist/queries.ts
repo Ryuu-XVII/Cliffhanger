@@ -29,12 +29,71 @@ fragment MediaLite on Media {
 }
 `;
 
+/**
+ * Every argument here is one AniList actually supports on Page.media, verified
+ * by schema introspection. The `_in` variants take arrays so format, status,
+ * genre, tag and source are all multi-select, and the `_not_in` pair is what
+ * makes exclusions ("no Ecchi") possible.
+ *
+ * Dates are FuzzyDateInt (YYYYMMDD as an Int), which is how a year *range* is
+ * expressed; `seasonYear` only ever matches a single year.
+ */
 export const SEARCH_QUERY = `
 ${MEDIA_LITE_FRAGMENT}
-query Search($search: String, $page: Int!, $perPage: Int!, $type: MediaType, $isAdult: Boolean, $format: MediaFormat, $genre_in: [String], $tag_in: [String], $season: MediaSeason, $seasonYear: Int, $status: MediaStatus, $sort: [MediaSort]) {
+query Search(
+  $search: String
+  $page: Int!
+  $perPage: Int!
+  $type: MediaType
+  $isAdult: Boolean
+  $format_in: [MediaFormat]
+  $status_in: [MediaStatus]
+  $genre_in: [String]
+  $genre_not_in: [String]
+  $tag_in: [String]
+  $tag_not_in: [String]
+  $minimumTagRank: Int
+  $season: MediaSeason
+  $seasonYear: Int
+  $startDate_greater: FuzzyDateInt
+  $startDate_lesser: FuzzyDateInt
+  $averageScore_greater: Int
+  $episodes_greater: Int
+  $episodes_lesser: Int
+  $chapters_greater: Int
+  $chapters_lesser: Int
+  $duration_lesser: Int
+  $source_in: [MediaSource]
+  $countryOfOrigin: CountryCode
+  $sort: [MediaSort]
+) {
   Page(page: $page, perPage: $perPage) {
     pageInfo { total currentPage lastPage hasNextPage perPage }
-    media(search: $search, type: $type, isAdult: $isAdult, format: $format, genre_in: $genre_in, tag_in: $tag_in, season: $season, seasonYear: $seasonYear, status: $status, sort: $sort) {
+    media(
+      search: $search
+      type: $type
+      isAdult: $isAdult
+      format_in: $format_in
+      status_in: $status_in
+      genre_in: $genre_in
+      genre_not_in: $genre_not_in
+      tag_in: $tag_in
+      tag_not_in: $tag_not_in
+      minimumTagRank: $minimumTagRank
+      season: $season
+      seasonYear: $seasonYear
+      startDate_greater: $startDate_greater
+      startDate_lesser: $startDate_lesser
+      averageScore_greater: $averageScore_greater
+      episodes_greater: $episodes_greater
+      episodes_lesser: $episodes_lesser
+      chapters_greater: $chapters_greater
+      chapters_lesser: $chapters_lesser
+      duration_lesser: $duration_lesser
+      source_in: $source_in
+      countryOfOrigin: $countryOfOrigin
+      sort: $sort
+    ) {
       ...MediaLite
     }
   }
@@ -253,6 +312,19 @@ mutation Save($mediaId: Int!, $status: MediaListStatus, $score: Float, $progress
 export const DELETE_MEDIA_LIST_ENTRY_MUTATION = `
 mutation Delete($id: Int!) {
   DeleteMediaListEntry(id: $id) { deleted }
+}
+`;
+
+/**
+ * DeleteMediaListEntry takes the *list entry* id, not the media id, and nothing
+ * local stores it. Media.mediaListEntry resolves it for the authenticated
+ * viewer, so a removal can be mirrored to AniList (F-23).
+ */
+export const MEDIA_LIST_ENTRY_ID_QUERY = `
+query ListEntryId($mediaId: Int!) {
+  Media(id: $mediaId) {
+    mediaListEntry { id }
+  }
 }
 `;
 

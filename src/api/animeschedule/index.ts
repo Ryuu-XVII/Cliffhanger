@@ -134,29 +134,6 @@ export async function getAiringInfo(anilistId: number | null): Promise<AiringInf
   }
 }
 
-/**
- * Fallback lookup by title, used only when a record has no AniList
- * cross-reference. The result is display-only: it is never written to an entry,
- * because §4.6 forbids keying anything off a title string.
- */
-export async function searchByTitle(query: string): Promise<AiringInfo | null> {
-  const trimmed = query.trim();
-  if (trimmed.length < 2) return null;
-
-  try {
-    return await withCache('animeschedule:q:' + trimmed.toLowerCase(), TTL.airing, async () => {
-      const payload = await requestJson<AnimeSchedulePage>(
-        BASE + '/anime?q=' + encodeURIComponent(trimmed),
-        { limiter: animeScheduleLimiter, retries: 1 },
-      );
-      const match = payload.anime?.[0];
-      return match ? toAiringInfo(match) : null;
-    });
-  } catch {
-    return null;
-  }
-}
-
 /** Human-readable delay line for the detail screen, or null when airing normally. */
 export function describeDelay(delay: AiringDelay | null): string | null {
   if (!delay) return null;

@@ -199,7 +199,8 @@ export async function importFromAniList(): Promise<ImportResult> {
         snapshot: toSnapshot(media),
       };
 
-      store.restore(entry);
+      // Came from AniList, so it must not be mirrored straight back (F-23).
+      store.restore(entry, 'anilist');
       if (existing) result.updated += 1;
       else result.added += 1;
     }

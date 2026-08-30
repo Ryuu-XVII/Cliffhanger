@@ -69,61 +69,6 @@ export async function getMalStats(malId: number | null): Promise<MalStats | null
   }
 }
 
-interface JikanSearchResponse {
-  data?: Array<{
-    mal_id?: number | null;
-    title?: string | null;
-    title_english?: string | null;
-    title_japanese?: string | null;
-    images?: { jpg?: { large_image_url?: string | null } | null } | null;
-    episodes?: number | null;
-    type?: string | null;
-    year?: number | null;
-    score?: number | null;
-  }> | null;
-}
-
-export interface JikanSearchResult {
-  malId: number;
-  title: { romaji: string | null; english: string | null; native: string | null };
-  coverImage: string | null;
-  episodes: number | null;
-  format: string | null;
-  year: number | null;
-  score: number | null;
-}
-
-/**
- * Fallback search used only when AniList is unreachable (§15). Results carry a
- * malId, not an anilistId, so they are display-only until AniList recovers -
- * §4.6 forbids keying an entry off anything but the AniList id.
- */
-export async function searchFallback(query: string): Promise<JikanSearchResult[]> {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
-
-  const payload = await requestJson<JikanSearchResponse>(
-    BASE + '/anime?limit=20&sfw=true&q=' + encodeURIComponent(trimmed),
-    { limiter: jikanLimiter, retries: 1 },
-  );
-
-  return (payload.data ?? [])
-    .filter((item) => typeof item.mal_id === 'number')
-    .map((item) => ({
-      malId: item.mal_id as number,
-      title: {
-        romaji: item.title ?? null,
-        english: item.title_english ?? null,
-        native: item.title_japanese ?? null,
-      },
-      coverImage: item.images?.jpg?.large_image_url ?? null,
-      episodes: numberOrNull(item.episodes),
-      format: item.type ?? null,
-      year: numberOrNull(item.year),
-      score: numberOrNull(item.score),
-    }));
-}
-
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }

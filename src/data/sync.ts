@@ -1,7 +1,14 @@
+import {
+  deleteMediaListEntryByMediaId,
+  hasAniListToken,
+  saveMediaListEntry,
+} from '@/api/anilist';
 import { isOnline } from '@/api/http';
+import { timestampToFuzzyDate } from '@/utils/time';
 import { localStore } from './localStore';
 import type { CustomList, LibraryEntry, UserSettings } from './models';
 import * as remote from './remote';
+import { toAniListStatus } from './transforms';
 import { useSettingsStore } from '@/stores/settingsStore';
 import {
   markFailed,
@@ -144,9 +151,11 @@ async function apply(uid: string, op: SyncOp): Promise<void> {
   switch (op.type) {
     case 'entry.upsert':
       await remote.pushEntry(uid, op.payload as LibraryEntry);
+      await mirrorToAniList(op);
       return;
     case 'entry.delete':
       await remote.deleteEntry(uid, op.payload as number);
+      await mirrorDeleteToAniList(op);
       return;
     case 'list.upsert':
       await remote.pushList(uid, op.payload as CustomList);
@@ -160,5 +169,50 @@ async function apply(uid: string, op: SyncOp): Promise<void> {
     case 'profile.update':
       await remote.pushProfile(op.payload as Parameters<typeof remote.pushProfile>[0]);
       return;
+  }
+}
+
+/**
+ * F-23 write-back. A linked AniList account is meant to be the user's real
+ * list, so every local edit mirrors outward on the same queue drain that
+ * pushes to our own backend.
+ *
+ * Failure here is deliberately swallowed rather than thrown. The queue op has
+ * already succeeded against our backend, and rethrowing would mark the whole op
+ * failed and replay the backend write forever because AniList is rate limited
+ * or the token expired. The local library stays correct either way; the next
+ * edit to the same title re-attempts the mirror.
+ */
+async function mirrorToAniList(op: SyncOp): Promise<void> {
+  if (op.origin === 'anilist') return;
+  if (!hasAniListToken()) return;
+
+  const entry = op.payload as LibraryEntry;
+  try {
+    await saveMediaListEntry({
+      mediaId: entry.anilistId,
+      status: toAniListStatus(entry.status),
+      score: entry.score,
+      progress: entry.progress,
+      progressVolumes: entry.progressVolumes,
+      repeat: entry.rewatches,
+      notes: entry.notes,
+      private: entry.private,
+      startedAt: timestampToFuzzyDate(entry.startedAt),
+      completedAt: timestampToFuzzyDate(entry.completedAt),
+    });
+  } catch {
+    /* Rate limited, offline, or token revoked - see the note above. */
+  }
+}
+
+async function mirrorDeleteToAniList(op: SyncOp): Promise<void> {
+  if (op.origin === 'anilist') return;
+  if (!hasAniListToken()) return;
+
+  try {
+    await deleteMediaListEntryByMediaId(op.payload as number);
+  } catch {
+    /* Same reasoning as mirrorToAniList. */
   }
 }

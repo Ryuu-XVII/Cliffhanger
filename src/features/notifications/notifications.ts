@@ -110,10 +110,6 @@ export async function registerPushToken(): Promise<string | null> {
   }
 }
 
-export function cachedPushToken(): string | null {
-  return readJson<string>(TOKEN_KEY);
-}
-
 function idempotencyKey(anilistId: number, episode: number): string {
   return anilistId + ':' + episode;
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Switch, View } from 'react-native';
+import { Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 
 import {
   cancelAll,
@@ -10,13 +10,15 @@ import {
 } from '@/features/notifications/notifications';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { toast } from '@/stores/toastStore';
-import { radii, spacing } from '@/theme/tokens';
+import { hairline, radii, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button } from '@/ui/Button';
 import { Chip } from '@/ui/Chip';
 import { ScreenHeader } from '@/ui/Header';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
+
+const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 /**
  * F-13 controls. Defaults follow §15: on for Watching, off for Planning, with
@@ -38,6 +40,26 @@ export default function NotificationSettingsScreen() {
   const [granted, setGranted] = useState<boolean | null>(null);
   const [queued, setQueued] = useState(scheduledCount());
   const [working, setWorking] = useState(false);
+
+  const matchesPreset = QUIET_PRESETS.some(
+    (preset) =>
+      (preset.value === null && settings.quietHours === null) ||
+      (preset.value !== null &&
+        settings.quietHours?.start === preset.value.start &&
+        settings.quietHours?.end === preset.value.end),
+  );
+  const [customOpen, setCustomOpen] = useState(!matchesPreset && settings.quietHours !== null);
+  const [customStart, setCustomStart] = useState(settings.quietHours?.start ?? '');
+  const [customEnd, setCustomEnd] = useState(settings.quietHours?.end ?? '');
+
+  const applyCustom = () => {
+    if (!TIME_PATTERN.test(customStart) || !TIME_PATTERN.test(customEnd)) {
+      toast.error('Use 24-hour HH:MM, like 22:30');
+      return;
+    }
+    update({ quietHours: { start: customStart, end: customEnd } });
+    toast.success('Quiet hours updated');
+  };
 
   useEffect(() => {
     void checkPermission().then(setGranted);
@@ -116,20 +138,49 @@ export default function NotificationSettingsScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
             {QUIET_PRESETS.map((preset) => {
               const selected =
-                (preset.value === null && settings.quietHours === null) ||
-                (preset.value !== null &&
-                  settings.quietHours?.start === preset.value.start &&
-                  settings.quietHours?.end === preset.value.end);
+                !customOpen &&
+                ((preset.value === null && settings.quietHours === null) ||
+                  (preset.value !== null &&
+                    settings.quietHours?.start === preset.value.start &&
+                    settings.quietHours?.end === preset.value.end));
               return (
                 <Chip
                   key={preset.label}
                   label={preset.label}
                   selected={selected}
-                  onPress={() => update({ quietHours: preset.value })}
+                  onPress={() => {
+                    setCustomOpen(false);
+                    update({ quietHours: preset.value });
+                  }}
                 />
               );
             })}
+            <Chip
+              label="Custom"
+              selected={customOpen}
+              onPress={() => setCustomOpen(true)}
+            />
           </View>
+
+          {customOpen ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }}>
+              <TimeField label="Start" value={customStart} onChange={setCustomStart} />
+              <Text variant="bodyMd" colour="onSurfaceVariant">
+                to
+              </Text>
+              <TimeField label="End" value={customEnd} onChange={setCustomEnd} />
+              <Pressable
+                onPress={applyCustom}
+                accessibilityRole="button"
+                accessibilityLabel="Apply custom quiet hours"
+                style={{ justifyContent: 'center', paddingHorizontal: spacing.sm }}
+              >
+                <Text variant="labelLg" colour={colors.primary} uppercase>
+                  Set
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
         </Section>
 
         <Section title="Scheduled on this device">
@@ -139,8 +190,8 @@ export default function NotificationSettingsScreen() {
               : queued + (queued === 1 ? ' alert queued' : ' alerts queued') + ' for the next seven days.'}
           </Text>
           <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginTop: spacing.xs }}>
-            Alerts are scheduled locally so they still fire offline. When the backend is deployed,
-            push takes over and covers titles that air beyond this window.
+            Alerts are scheduled locally so they still fire offline. Push notifications cover
+            titles airing beyond this seven-day window.
           </Text>
 
           <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
@@ -192,6 +243,42 @@ function Section({
       ) : null}
       <View style={{ marginTop: spacing.md }}>{children}</View>
     </View>
+  );
+}
+
+function TimeField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChange}
+      placeholder="HH:MM"
+      placeholderTextColor={colors.outline}
+      keyboardType="numbers-and-punctuation"
+      maxLength={5}
+      accessibilityLabel={label + ' time, 24-hour HH:MM'}
+      style={{
+        width: 76,
+        height: 44,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radii.DEFAULT,
+        backgroundColor: colors.surfaceContainerHigh,
+        borderWidth: 1,
+        borderColor: hairline,
+        color: colors.onSurface,
+        fontFamily: 'HankenGrotesk_400Regular',
+        fontSize: 16,
+        textAlign: 'center',
+      }}
+    />
   );
 }
 

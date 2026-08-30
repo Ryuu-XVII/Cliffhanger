@@ -35,6 +35,18 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Firebase Android config. Required for FCM push registration, but it carries a
+# project API key, so it stays out of a public repo. Restore it with:
+#   npm run fetch:google-services
+google-services.json
+
+# FCM V1 service account key. A real private key - upload it to EAS, never commit it.
+fcm-service-account.json
+
+# Play Store upload keystore and its passwords. Losing these means you can never
+# ship an update under the same listing - back them up outside this repo.
+credentials/
+
 # typescript
 *.tsbuildinfo
 
@@ -43,3 +55,8 @@ yarn-error.*
 /android
 .env
 .env.local
+
+# Build artifacts. A 123MB APK was committed once and is still in history -
+# reclaiming that space needs a history rewrite (git filter-repo / BFG), which
+# rewrites already-pushed commits, so it is a deliberate call, not a cleanup.
+releases/
