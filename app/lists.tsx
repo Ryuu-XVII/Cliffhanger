@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { useLibraryStore } from '@/stores/libraryStore';
@@ -47,7 +47,7 @@ export default function ListsScreen() {
 
   const confirmDelete = (id: string, listName: string) => {
     Alert.alert(
-      'Delete "' + listName + '"?',
+      `Delete "${listName}"?`,
       'The titles stay in your library. Only the list goes.',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -76,7 +76,7 @@ export default function ListsScreen() {
         coverImage: entry.snapshot.coverImage,
       })),
     }, null, 2);
-    await shareExport(payload, 'cliffhanger-' + listId + '.json', 'application/json');
+    await shareExport(payload, `cliffhanger-${listId}.json`, 'application/json');
     toast.success('Private list export ready to share');
   };
 
@@ -118,83 +118,86 @@ export default function ListsScreen() {
           />
         ) : (
           <View style={{ marginTop: spacing.lg }}>
-            {lists.map((list) => (
-              <View
-                key={list.id}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginHorizontal: spacing.gutter,
-                  marginBottom: spacing.sm,
-                  padding: spacing.md,
-                  borderRadius: radii.md,
-                  backgroundColor: colors.surfaceContainerLow,
-                }}
-              >
-                {editing === list.id ? (
-                  <TextInput
-                    value={draft}
-                    onChangeText={setDraft}
-                    autoFocus
-                    onBlur={() => {
-                      if (draft.trim()) renameList(list.id, draft);
-                      setEditing(null);
-                    }}
-                    onSubmitEditing={() => {
-                      if (draft.trim()) renameList(list.id, draft);
-                      setEditing(null);
-                    }}
-                    accessibilityLabel={'Rename ' + list.name}
-                    style={{
-                      flex: 1,
-                      color: colors.onSurface,
-                      fontFamily: 'HankenGrotesk_400Regular',
-                      fontSize: 16,
-                    }}
-                  />
-                ) : (
-                  <View style={{ flex: 1 }}>
-                    <Text variant="bodyMd">{list.name}</Text>
-                    <Text variant="labelSm" colour="onSurfaceVariant">
-                      {countFor(list.id) + (countFor(list.id) === 1 ? ' title' : ' titles')}
-                    </Text>
-                  </View>
-                )}
-
-                <Pressable
-                  onPress={() => void shareList(list.id, list.name)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={'Share ' + list.name}
-                  style={{ padding: spacing.sm }}
-                >
-                  <Ionicons name="share-outline" size={18} color={colors.primary} />
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    setDraft(list.name);
-                    setEditing(list.id);
+            {lists.map((list) => {
+              const count = countFor(list.id);
+              return (
+                <View
+                  key={list.id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginHorizontal: spacing.gutter,
+                    marginBottom: spacing.sm,
+                    padding: spacing.md,
+                    borderRadius: radii.md,
+                    backgroundColor: colors.surfaceContainerLow,
                   }}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={'Rename ' + list.name}
-                  style={{ padding: spacing.sm }}
                 >
-                  <Ionicons name="pencil-outline" size={18} color={colors.onSurfaceVariant} />
-                </Pressable>
+                  {editing === list.id ? (
+                    <TextInput
+                      value={draft}
+                      onChangeText={setDraft}
+                      autoFocus
+                      onBlur={() => {
+                        if (draft.trim()) renameList(list.id, draft);
+                        setEditing(null);
+                      }}
+                      onSubmitEditing={() => {
+                        if (draft.trim()) renameList(list.id, draft);
+                        setEditing(null);
+                      }}
+                      accessibilityLabel={`Rename ${list.name}`}
+                      style={{
+                        flex: 1,
+                        color: colors.onSurface,
+                        fontFamily: 'HankenGrotesk_400Regular',
+                        fontSize: 16,
+                      }}
+                    />
+                  ) : (
+                    <View style={{ flex: 1 }}>
+                      <Text variant="bodyMd">{list.name}</Text>
+                      <Text variant="labelSm" colour="onSurfaceVariant">
+                        {`${count} ${count === 1 ? 'title' : 'titles'}`}
+                      </Text>
+                    </View>
+                  )}
 
-                <Pressable
-                  onPress={() => confirmDelete(list.id, list.name)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={'Delete ' + list.name}
-                  style={{ padding: spacing.sm }}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.error} />
-                </Pressable>
-              </View>
-            ))}
+                  <Pressable
+                    onPress={() => void shareList(list.id, list.name)}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Share ${list.name}`}
+                    style={{ padding: spacing.sm }}
+                  >
+                    <Ionicons name="share-outline" size={18} color={colors.primary} />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setDraft(list.name);
+                      setEditing(list.id);
+                    }}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Rename ${list.name}`}
+                    style={{ padding: spacing.sm }}
+                  >
+                    <Ionicons name="pencil-outline" size={18} color={colors.onSurfaceVariant} />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => confirmDelete(list.id, list.name)}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${list.name}`}
+                    style={{ padding: spacing.sm }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </Pressable>
+                </View>
+              );
+            })}
           </View>
         )}
       </ScrollView>

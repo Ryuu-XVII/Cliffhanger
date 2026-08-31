@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { ScrollView, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, Rect } from 'react-native-svg';
 
@@ -20,6 +20,15 @@ import { Text } from '@/ui/Text';
  * shapes are simple, and every mark can then use the theme accent so the
  * screen reads as part of the same system.
  */
+
+const HISTOGRAM_HEIGHT = 140;
+const HISTOGRAM_BASELINE = 130;
+const HISTOGRAM_MAX_BAR = 120;
+const HISTOGRAM_BAR_GAP = 4;
+
+const REWATCH_RING_RADIUS = 26;
+const REWATCH_RING_CIRCUMFERENCE = 2 * Math.PI * REWATCH_RING_RADIUS;
+
 export default function StatsScreen() {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
@@ -63,11 +72,11 @@ export default function StatsScreen() {
           <Tile
             label="Mean score"
             value={stats.meanScore === null ? '--' : formatScore(stats.meanScore, scoreFormat)}
-            hint={stats.scoredCount + ' scored'}
+            hint={`${stats.scoredCount} scored`}
           />
           <Tile
             label="Completion"
-            value={Math.round(stats.completionRate * 100) + '%'}
+            value={`${Math.round(stats.completionRate * 100)}%`}
             hint="Of everything started"
           />
         </View>
@@ -107,16 +116,16 @@ export default function StatsScreen() {
         </Card>
 
         <Card title="Score spread" hint="How you rate, out of 100">
-          <Svg width={chartWidth} height={140}>
+          <Svg width={chartWidth} height={HISTOGRAM_HEIGHT}>
             {stats.scoreHistogram.map((bar, index) => {
-              const barWidth = chartWidth / stats.scoreHistogram.length - 4;
-              const height = (bar.count / maxHistogram) * 120;
+              const slotWidth = chartWidth / stats.scoreHistogram.length;
+              const height = (bar.count / maxHistogram) * HISTOGRAM_MAX_BAR;
               return (
                 <Rect
                   key={bar.bucket}
-                  x={index * (chartWidth / stats.scoreHistogram.length)}
-                  y={130 - height}
-                  width={barWidth}
+                  x={index * slotWidth}
+                  y={HISTOGRAM_BASELINE - height}
+                  width={slotWidth - HISTOGRAM_BAR_GAP}
                   height={Math.max(height, bar.count > 0 ? 3 : 1)}
                   rx={3}
                   fill={bar.count > 0 ? colors.primary : 'rgba(255,255,255,0.07)'}
@@ -140,7 +149,7 @@ export default function StatsScreen() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text variant="bodyMd">{genre.genre}</Text>
                 <Text variant="bodyMd" colour="onSurfaceVariant">
-                  {Math.round(genre.share * 100) + '%'}
+                  {`${Math.round(genre.share * 100)}%`}
                 </Text>
               </View>
               <View
@@ -167,18 +176,26 @@ export default function StatsScreen() {
         <Card title="Rewatches">
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Svg width={64} height={64}>
-              <Circle cx={32} cy={32} r={26} stroke="rgba(255,255,255,0.08)" strokeWidth={6} fill="none" />
               <Circle
                 cx={32}
                 cy={32}
-                r={26}
+                r={REWATCH_RING_RADIUS}
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth={6}
+                fill="none"
+              />
+              <Circle
+                cx={32}
+                cy={32}
+                r={REWATCH_RING_RADIUS}
                 stroke={colors.tertiary}
                 strokeWidth={6}
                 fill="none"
                 strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 26}
+                strokeDasharray={REWATCH_RING_CIRCUMFERENCE}
                 strokeDashoffset={
-                  2 * Math.PI * 26 * (1 - Math.min(1, stats.rewatchTotal / Math.max(stats.totalEntries, 1)))
+                  REWATCH_RING_CIRCUMFERENCE *
+                  (1 - Math.min(1, stats.rewatchTotal / Math.max(stats.totalEntries, 1)))
                 }
                 transform="rotate(-90 32 32)"
               />
@@ -236,7 +253,7 @@ function Card({
 }: {
   title: string;
   hint?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const { colors } = useTheme();
   return (

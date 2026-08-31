@@ -20,6 +20,13 @@ import { Text } from './Text';
  * dismiss decision uses velocity, not just distance, so a quick flick closes it
  * the way the platform sheets do.
  */
+/** Drag distance (px) past which releasing dismisses the sheet. */
+const DISMISS_DISTANCE = 120;
+/** Flick speed (px/s) that dismisses regardless of how far the sheet moved. */
+const DISMISS_VELOCITY = 900;
+/** Far enough below the fold that the sheet is off screen on any phone. */
+const OFFSCREEN_Y = 600;
+
 export interface SheetProps {
   visible: boolean;
   onClose: () => void;
@@ -44,11 +51,14 @@ export function Sheet({ visible, onClose, title, children, style }: SheetProps) 
       translateY.value = Math.max(0, event.translationY);
     })
     .onEnd((event) => {
-      const shouldClose = event.translationY > 120 || event.velocityY > 900;
+      const shouldClose =
+        event.translationY > DISMISS_DISTANCE || event.velocityY > DISMISS_VELOCITY;
       if (shouldClose) {
-        translateY.value = reduced
-          ? withTiming(600, timing.reduced, () => runOnJS(close)())
-          : withTiming(600, { duration: 180 }, () => runOnJS(close)());
+        translateY.value = withTiming(
+          OFFSCREEN_Y,
+          reduced ? timing.reduced : { duration: 180 },
+          () => runOnJS(close)(),
+        );
       } else {
         translateY.value = withSpring(0, spring.weighty);
       }

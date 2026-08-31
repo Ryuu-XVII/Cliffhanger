@@ -10,10 +10,10 @@ import type { CustomList, LibraryEntry, UserSettings } from './models';
  * copy one namespace onto another (§5).
  */
 
-const ENTRIES = (uid: string): string => 'lib:' + uid + ':entries';
-const LISTS = (uid: string): string => 'lib:' + uid + ':lists';
-const SETTINGS = (uid: string): string => 'lib:' + uid + ':settings';
-const META = (uid: string): string => 'lib:' + uid + ':meta';
+const ENTRIES = (uid: string): string => `lib:${uid}:entries`;
+const LISTS = (uid: string): string => `lib:${uid}:lists`;
+const SETTINGS = (uid: string): string => `lib:${uid}:settings`;
+const META = (uid: string): string => `lib:${uid}:meta`;
 
 export interface LocalMeta {
   lastSyncedAt: number | null;

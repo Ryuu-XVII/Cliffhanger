@@ -72,7 +72,7 @@ function absoluteUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   const trimmed = url.trim();
   if (trimmed.length === 0) return null;
-  return /^https?:\/\//i.test(trimmed) ? trimmed : 'https://' + trimmed;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 function toAiringInfo(anime: AnimeScheduleAnime): AiringInfo {
@@ -118,9 +118,9 @@ export async function getAiringInfo(anilistId: number | null): Promise<AiringInf
   if (!anilistId || !Number.isFinite(anilistId)) return null;
 
   try {
-    return await withCache('animeschedule:anilist:' + anilistId, TTL.airing, async () => {
+    return await withCache(`animeschedule:anilist:${anilistId}`, TTL.airing, async () => {
       const payload = await requestJson<AnimeSchedulePage>(
-        BASE + '/anime?anilist-ids=' + encodeURIComponent(String(anilistId)),
+        `${BASE}/anime?anilist-ids=${encodeURIComponent(String(anilistId))}`,
         { limiter: animeScheduleLimiter, retries: 1 },
       );
 
@@ -144,12 +144,12 @@ export function describeDelay(delay: AiringDelay | null): string | null {
       day: 'numeric',
       month: 'short',
     });
-    return delay.reason + ' until ' + date;
+    return `${delay.reason} until ${date}`;
   }
   return delay.reason;
 }
 
 /** Link back to the AnimeSchedule page, which is where the corrections live. */
 export function scheduleUrl(info: AiringInfo | null): string | null {
-  return info?.route ? 'https://animeschedule.net/anime/' + info.route : null;
+  return info?.route ? `https://animeschedule.net/anime/${info.route}` : null;
 }

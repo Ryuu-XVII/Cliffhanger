@@ -75,6 +75,10 @@ const LIBRARY_SCOPES: { value: LibraryScope; label: string }[] = [
   { value: 'in-library', label: 'In my library' },
 ];
 
+function toggleInList(list: string[], value: string): string[] {
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+}
+
 export default function SearchScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -176,9 +180,6 @@ export default function SearchScreen() {
     });
   };
 
-  const toggleInList = (list: string[], value: string): string[] =>
-    list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
-
   /*
    * A sheet rather than Alert.prompt, which does not exist on Android and would
    * have left the primary platform unable to name anything it saves.
@@ -193,7 +194,7 @@ export default function SearchScreen() {
     if (!name) return;
     setSaved(saveSearch(name, query, filters));
     setSaveOpen(false);
-    toast.show('Saved as "' + name + '"', 'success');
+    toast.show(`Saved as "${name}"`, 'success');
   };
 
   return (
@@ -329,7 +330,7 @@ export default function SearchScreen() {
                 key={pill.id}
                 onPress={() => setFilters(removeFilter(filters, pill.id))}
                 accessibilityRole="button"
-                accessibilityLabel={'Remove filter ' + pill.label}
+                accessibilityLabel={`Remove filter ${pill.label}`}
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -565,7 +566,7 @@ export default function SearchScreen() {
                   <Pressable
                     onPress={() => setOpenTagCategory(expanded && !tagQuery ? null : category)}
                     accessibilityRole="button"
-                    accessibilityLabel={category + (expanded ? ', collapse' : ', expand')}
+                    accessibilityLabel={`${category}${expanded ? ', collapse' : ', expand'}`}
                     accessibilityState={{ expanded }}
                     style={{
                       flexDirection: 'row',
@@ -800,14 +801,14 @@ export default function SearchScreen() {
                 key={option.label}
                 label={
                   active && option.directional
-                    ? option.label + (isDescending(filters.sort) ? ' ↓' : ' ↑')
+                    ? `${option.label}${isDescending(filters.sort) ? ' ↓' : ' ↑'}`
                     : option.label
                 }
                 compact
                 selected={active}
                 accessibilityLabel={
                   active && option.directional
-                    ? option.label + ', ' + (isDescending(filters.sort) ? 'descending' : 'ascending') + '. Tap to reverse.'
+                    ? `${option.label}, ${isDescending(filters.sort) ? 'descending' : 'ascending'}. Tap to reverse.`
                     : option.label
                 }
                 onPress={() =>
@@ -851,7 +852,7 @@ export default function SearchScreen() {
                       runSearch(entry.query, entry.filters);
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={'Run saved search ' + entry.name}
+                    accessibilityLabel={`Run saved search ${entry.name}`}
                     style={{ paddingVertical: spacing.sm }}
                   >
                     <Text variant="labelLg">{entry.name}</Text>
@@ -859,11 +860,11 @@ export default function SearchScreen() {
                   <Pressable
                     onPress={() => {
                       setSaved(deleteSavedSearch(entry.id));
-                      toast.show('Removed "' + entry.name + '"');
+                      toast.show(`Removed "${entry.name}"`);
                     }}
                     hitSlop={8}
                     accessibilityRole="button"
-                    accessibilityLabel={'Remove saved search ' + entry.name}
+                    accessibilityLabel={`Remove saved search ${entry.name}`}
                     style={{ padding: spacing.sm }}
                   >
                     <Ionicons name="close" size={14} color={colors.onSurfaceVariant} />
@@ -943,7 +944,7 @@ export default function SearchScreen() {
         <Button
           label={
             filterCount > 0
-              ? 'Search · ' + filterCount + (filterCount === 1 ? ' filter' : ' filters')
+              ? `Search · ${filterCount} ${filterCount === 1 ? 'filter' : 'filters'}`
               : 'Search'
           }
           onPress={() => runSearch()}
@@ -1094,7 +1095,7 @@ function YearField({
         placeholderTextColor={colors.outline}
         keyboardType="number-pad"
         maxLength={4}
-        accessibilityLabel={label + ' year'}
+        accessibilityLabel={`${label} year`}
         style={{
           flex: 1,
           paddingVertical: 0,

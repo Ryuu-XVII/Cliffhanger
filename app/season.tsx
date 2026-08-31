@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, useWindowDimensions, View } from 'react-native';
 import { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 
@@ -13,7 +13,7 @@ import {
   seasonLabel,
   type SeasonRef,
 } from '@/utils/season';
-import { spacing } from '@/theme/tokens';
+import { aspect, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 import { ScreenHeader } from '@/ui/Header';
 import { Screen } from '@/ui/Screen';
@@ -35,6 +35,14 @@ const SHELF_TITLES: Record<DiscoverShelfId, string> = {
   airingSoon: 'Airing soon',
 };
 
+/** AniList has nothing catalogued before this, so anything earlier is a bad param. */
+const EARLIEST_SEASON_YEAR = 1950;
+
+/** Title and metadata block under each cover, used for the parallax row offset. */
+const CARD_CAPTION_HEIGHT = 70;
+
+const SKELETON_COUNT = 6;
+
 export default function SeasonScreen() {
   const params = useLocalSearchParams<{ season?: string; year?: string; genre?: string; shelf?: string }>();
   const { colors } = useTheme();
@@ -51,7 +59,10 @@ export default function SeasonScreen() {
     const fallback = currentSeason();
     const season = typeof params.season === 'string' ? (params.season as AniListSeason) : fallback.season;
     const year = Number(params.year);
-    return { season, year: Number.isFinite(year) && year > 1950 ? year : fallback.year };
+    return {
+      season,
+      year: Number.isFinite(year) && year > EARLIEST_SEASON_YEAR ? year : fallback.year,
+    };
   });
 
   const seasonQuery = useSeasonBrowse(ref.season, ref.year);
@@ -64,10 +75,19 @@ export default function SeasonScreen() {
     return seasonQuery.data?.pages.flatMap((page) => page.items) ?? [];
   }, [shelf, shelfQuery.data, genre, genreQuery.data, seasonQuery.data]);
 
-  const isLoading = shelf ? shelfQuery.isLoading : genre ? genreQuery.isLoading : seasonQuery.isLoading;
-  const isError = shelf ? shelfQuery.isError : genre ? genreQuery.isError : seasonQuery.isError;
-  const error = shelf ? shelfQuery.error : genre ? genreQuery.error : seasonQuery.error;
-  const refetch = shelf ? shelfQuery.refetch : genre ? genreQuery.refetch : seasonQuery.refetch;
+  function activeQuery() {
+    if (shelf) return shelfQuery;
+    if (genre) return genreQuery;
+    return seasonQuery;
+  }
+
+  const { isLoading, isError, error, refetch } = activeQuery();
+
+  function emptyMessage(): string {
+    if (shelf) return 'AniList has nothing here right now.';
+    if (genre) return 'AniList has no titles for this genre right now.';
+    return 'This season has not been catalogued yet. Try the previous one.';
+  }
 
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -94,7 +114,7 @@ export default function SeasonScreen() {
         >
           <Stepper
             icon="chevron-back"
-            label={'Previous season, ' + seasonLabel(previousSeason(ref))}
+            label={`Previous season, ${seasonLabel(previousSeason(ref))}`}
             onPress={() => setRef(previousSeason(ref))}
           />
 
@@ -102,7 +122,7 @@ export default function SeasonScreen() {
 
           <Stepper
             icon="chevron-forward"
-            label={'Next season, ' + seasonLabel(nextSeason(ref))}
+            label={`Next season, ${seasonLabel(nextSeason(ref))}`}
             onPress={() => setRef(nextSeason(ref))}
           />
         </View>
@@ -119,7 +139,7 @@ export default function SeasonScreen() {
             paddingHorizontal: spacing.gutter,
           }}
         >
-          {[0, 1, 2, 3, 4, 5].map((index) => (
+          {Array.from({ length: SKELETON_COUNT }, (_, index) => (
             <SkeletonCard key={index} width={cardWidth} />
           ))}
         </View>
@@ -127,18 +147,12 @@ export default function SeasonScreen() {
         <EmptyState
           icon="calendar-outline"
           title="Nothing listed"
-          message={
-            shelf
-              ? 'AniList has nothing here right now.'
-              : genre
-                ? 'AniList has no titles for this genre right now.'
-                : 'This season has not been catalogued yet. Try the previous one.'
-          }
+          message={emptyMessage()}
         />
       ) : (
         <FlatList
           data={items}
-          key={'season-' + columns}
+          key={`season-${columns}`}
           numColumns={columns}
           keyExtractor={(item) => String(item.id)}
           onScroll={onScroll}
@@ -160,7 +174,9 @@ export default function SeasonScreen() {
               media={item}
               width={cardWidth}
               scrollY={scrollY}
-              itemOffset={Math.floor(index / columns) * (cardWidth * 1.5 + 70)}
+              itemOffset={
+                Math.floor(index / columns) * (cardWidth / aspect.cover + CARD_CAPTION_HEIGHT)
+              }
             />
           )}
           ListFooterComponent={
@@ -173,4 +189,3 @@ export default function SeasonScreen() {
     </Screen>
   );
 }
-

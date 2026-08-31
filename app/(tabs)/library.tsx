@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 
@@ -17,7 +17,7 @@ import {
 import { displayName, useAuthStore } from '@/stores/authStore';
 import { countByStatus, useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { hairline, radii, spacing } from '@/theme/tokens';
+import { aspect, hairline, radii, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Chip } from '@/ui/Chip';
 import { ScreenHeader } from '@/ui/Header';
@@ -31,6 +31,10 @@ import { Text } from '@/ui/Text';
  * F-07. A wall of art, not a wall of grey cards (§10) - gutters are tight so
  * the covers do the talking, and the chrome above them stays quiet.
  */
+
+/** Cover height plus the title/progress block beneath it, per grid row. */
+const CARD_CAPTION_HEIGHT = 70;
+
 export default function LibraryScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -67,11 +71,11 @@ export default function LibraryScreen() {
 
   const genres = useMemo(() => {
     const set = new Set<string>();
-    for (const entry of Object.values(useLibraryStore.getState().entries)) {
+    for (const entry of Object.values(allEntriesMap)) {
       for (const genre of entry.snapshot.genres) set.add(genre);
     }
     return Array.from(set).sort();
-  }, []);
+  }, [allEntriesMap]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: (typeof entries)[number]; index: number }) => {
@@ -81,7 +85,7 @@ export default function LibraryScreen() {
           entry={item}
           width={cardWidth}
           scrollY={scrollY}
-          itemOffset={Math.floor(index / columns) * (cardWidth / (2 / 3) + 70)}
+          itemOffset={Math.floor(index / columns) * (cardWidth / aspect.cover + CARD_CAPTION_HEIGHT)}
           style={{
             marginBottom: spacing.lg,
             marginRight: (index + 1) % columns === 0 ? 0 : gutter,
@@ -108,9 +112,9 @@ export default function LibraryScreen() {
         style={{ marginBottom: spacing.md }}
       />
 
-      <View style={styles_row}>
+      <View style={toolbarRowStyle}>
         <Text variant="labelLg" colour="onSurfaceVariant" uppercase style={{ flex: 1 }}>
-          {total + (total === 1 ? ' item' : ' items')}
+          {`${total} ${total === 1 ? 'item' : 'items'}`}
         </Text>
 
         <IconButton
@@ -132,7 +136,7 @@ export default function LibraryScreen() {
         keyExtractor={(item) => String(item.anilistId)}
         renderItem={renderItem}
         numColumns={layout === 'grid' ? columns : 1}
-        key={layout + ':' + columns}
+        key={`${layout}:${columns}`}
         onScroll={onScroll}
         scrollEventThrottle={16}
         onRefresh={() => void sync()}
@@ -146,7 +150,7 @@ export default function LibraryScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="albums-outline"
-            title={'Nothing in ' + STATUS_LABELS[view.status].toLowerCase()}
+            title={`Nothing in ${STATUS_LABELS[view.status].toLowerCase()}`}
             message={
               view.status === 'WATCHING'
                 ? 'Add a series here and it lands on your home screen with a plus button.'
@@ -279,7 +283,7 @@ function IconButton({
   );
 }
 
-const styles_row = {
+const toolbarRowStyle = {
   flexDirection: 'row' as const,
   alignItems: 'center' as const,
   paddingHorizontal: spacing.gutter,

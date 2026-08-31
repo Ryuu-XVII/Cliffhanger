@@ -25,7 +25,7 @@ export function ScorePicker({
   const { colors } = useTheme();
   const display = toDisplayScore(score, format);
 
-  const clear = (
+  const clearButton = (
     <Pressable
       onPress={() => {
         haptics.press();
@@ -57,7 +57,7 @@ export function ScorePicker({
                 }}
                 hitSlop={6}
                 accessibilityRole="radio"
-                accessibilityLabel={star + ' out of 5'}
+                accessibilityLabel={`${star} out of 5`}
                 accessibilityState={{ selected: filled }}
                 style={{ padding: spacing.xs }}
               >
@@ -70,7 +70,7 @@ export function ScorePicker({
             );
           })}
           <View style={{ flex: 1 }} />
-          {score !== null ? clear : null}
+          {score !== null ? clearButton : null}
         </View>
       </View>
     );
@@ -87,10 +87,10 @@ export function ScorePicker({
           {display === null ? '--' : String(display)}
         </Text>
         <Text variant="bodyMd" colour="onSurfaceVariant" style={{ marginLeft: spacing.xs }}>
-          {'/ ' + max}
+          {`/ ${max}`}
         </Text>
         <View style={{ flex: 1 }} />
-        {score !== null ? clear : null}
+        {score !== null ? clearButton : null}
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
@@ -104,7 +104,7 @@ export function ScorePicker({
                 onChange(fromDisplayScore(value, format));
               }}
               accessibilityRole="radio"
-              accessibilityLabel={value + ' out of ' + max}
+              accessibilityLabel={`${value} out of ${max}`}
               accessibilityState={{ selected }}
               style={{
                 minWidth: 44,

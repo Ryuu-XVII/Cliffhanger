@@ -29,7 +29,7 @@ export default function PrivacyScreen() {
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.gutter, paddingBottom: spacing.xl * 2 }}>
         <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginBottom: spacing.lg }}>
-          {'Last updated ' + UPDATED}
+          {`Last updated ${UPDATED}`}
         </Text>
 
         <Para>

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { ScrollView, View, type ViewStyle } from 'react-native';
 
 import { haptics } from '@/motion';
@@ -33,11 +33,9 @@ export function SegmentedTabs<T extends string>({
   accessibilityLabel?: string;
 }) {
   const { colors } = useTheme();
-  const scrollRef = useRef<ScrollView>(null);
 
   return (
     <ScrollView
-      ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
       accessibilityRole="tablist"

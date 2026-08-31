@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 import { resolveTitle } from '@/data/titles';
 import type { LibraryEntry } from '@/data/models';
-import { totalUnits, unitNoun, useLibraryStore } from '@/stores/libraryStore';
+import { totalUnits, unitNounCapitalised, useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { toast } from '@/stores/toastStore';
 
@@ -43,17 +43,17 @@ export function useProgressActions() {
       if (!entry || !previous) return outcome;
 
       const title = resolveTitle(entry.snapshot.title, language);
-      const noun = unitNoun(entry);
+      const nounCapitalised = unitNounCapitalised(entry);
 
       if (completed) {
         // The orchestrated moment (§9), with the undo still reachable.
         celebrate(entry, rewatchCompleted ? entry.rewatches : 0);
-        toast.undo('Completed ' + title, () => restore(previous));
+        toast.undo(`Completed ${title}`, () => restore(previous));
       } else if (entry.progress !== previous.progress) {
         const total = totalUnits(entry);
-        const suffix = total ? ' of ' + total : '';
+        const suffix = total ? ` of ${total}` : '';
         toast.undo(
-          noun.charAt(0).toUpperCase() + noun.slice(1) + ' ' + entry.progress + suffix,
+          `${nounCapitalised} ${entry.progress}${suffix}`,
           () => restore(previous),
         );
       }
@@ -71,7 +71,7 @@ export function useProgressActions() {
 
       if (completed) {
         celebrate(entry, rewatchCompleted ? entry.rewatches : 0);
-        toast.undo('Completed ' + resolveTitle(entry.snapshot.title, language), () =>
+        toast.undo(`Completed ${resolveTitle(entry.snapshot.title, language)}`, () =>
           restore(previous),
         );
       }

@@ -14,6 +14,9 @@ import { Text } from './Text';
  * Toasts sit above the floating tab bar and never block input (§9 constraint).
  * The Undo action is a real button so screen-reader users can reach it.
  */
+/** Keeps the stack clear of the floating tab dock. */
+const TAB_DOCK_CLEARANCE = 96;
+
 export function Toaster() {
   const toasts = useToastStore((state) => state.toasts);
   const dismiss = useToastStore((state) => state.dismiss);
@@ -25,7 +28,7 @@ export function Toaster() {
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.container, { bottom: insets.bottom + 96 }]}
+      style={[styles.container, { bottom: insets.bottom + TAB_DOCK_CLEARANCE }]}
     >
       {toasts.map((toast) => (
         <ToastRow

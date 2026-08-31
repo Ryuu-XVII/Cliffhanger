@@ -1,24 +1,25 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
 
+import type { AiringScheduleItem } from '@/api/anilist';
 import { useAiringWindow } from '@/api/hooks';
+import { isActiveEntry } from '@/data/models';
 import { resolveTitle } from '@/data/titles';
 import { AiringRow } from '@/features/home/components/AiringRow';
 import { JumpBackIn } from '@/features/home/components/JumpBackIn';
-import { ROSTER_CARD_WIDTH, RosterCard } from '@/features/home/components/RosterCard';
-import { SyncBanner } from '@/features/library/components/SyncBanner';
+import { RosterCard } from '@/features/home/components/RosterCard';
 import { UpgradePrompt } from '@/features/account/UpgradePrompt';
+import { SyncBanner } from '@/features/library/components/SyncBanner';
 import { displayName, useAuthStore } from '@/stores/authStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { spacing } from '@/theme/tokens';
-import { EmptyState, ErrorState } from '@/ui/States';
-import { Screen, useTabBarClearance } from '@/ui/Screen';
 import { ScreenHeader, SectionHeader } from '@/ui/Header';
-import { SkeletonRow } from '@/ui/Skeleton';
 import { PullToRefresh } from '@/ui/PullToRefresh';
+import { Screen, useTabBarClearance } from '@/ui/Screen';
+import { SkeletonRow } from '@/ui/Skeleton';
+import { EmptyState, ErrorState } from '@/ui/States';
 import { Text } from '@/ui/Text';
 
 /**
@@ -26,19 +27,23 @@ import { Text } from '@/ui/Text';
  * and can I log it without going anywhere? Everything else on this screen is
  * secondary to the +1 (F-05).
  */
+
+// §12 caps how much we ask the airing API; a week matches the "airing soon" framing.
+const AIRING_WINDOW_HOURS = 24 * 7;
+const MAX_AIRING_ROWS = 6;
+
 export default function HomeScreen() {
   const router = useRouter();
   const entries = useLibraryStore((state) => state.entries);
   const sync = useLibraryStore((state) => state.sync);
   const name = useAuthStore(displayName);
   const language = useSettingsStore((state) => state.settings.titleLanguage);
-  const clearance = useTabBarClearance();
-  const scrollY = useSharedValue(0);
+  const tabBarClearance = useTabBarClearance();
 
   const watching = useMemo(
     () =>
       Object.values(entries)
-        .filter((entry) => entry.status === 'WATCHING' || entry.status === 'REWATCHING')
+        .filter(isActiveEntry)
         .sort((a, b) => b.updatedAt - a.updatedAt),
     [entries],
   );
@@ -46,27 +51,34 @@ export default function HomeScreen() {
   const hero = watching[0] ?? null;
   const roster = hero ? watching.slice(1) : watching;
 
-  const airing = useAiringWindow(168);
+  const airingQuery = useAiringWindow(AIRING_WINDOW_HOURS);
+
+  const trackedIds = useMemo(
+    () =>
+      new Set(
+        Object.values(entries)
+          .filter((entry) => isActiveEntry(entry) || entry.status === 'PLANNING')
+          .map((entry) => entry.anilistId),
+      ),
+    [entries],
+  );
 
   // Only surface airings for titles the user actually tracks - a generic
-  // schedule is noise, and §12 caps how much we ask of the API anyway.
-  const relevantAiring = useMemo(() => {
-    const tracked = new Set(
-      Object.values(entries)
-        .filter((entry) => entry.status === 'WATCHING' || entry.status === 'PLANNING' || entry.status === 'REWATCHING')
-        .map((entry) => entry.anilistId),
-    );
-    return (airing.data ?? [])
-      .filter((item) => item.media && tracked.has(item.media.id))
-      .slice(0, 6);
-  }, [airing.data, entries]);
+  // schedule is noise.
+  const trackedAiring = useMemo(
+    () =>
+      (airingQuery.data ?? [])
+        .filter((item) => item.media && trackedIds.has(item.media.id))
+        .slice(0, MAX_AIRING_ROWS),
+    [airingQuery.data, trackedIds],
+  );
 
   const onRefresh = useCallback(async () => {
-    await Promise.all([sync(), airing.refetch()]);
-  }, [sync, airing]);
+    await Promise.all([sync(), airingQuery.refetch()]);
+  }, [sync, airingQuery.refetch]);
 
   const heroNextLabel = hero
-    ? (hero.mediaType === 'MANGA' ? 'Chapter ' : 'Episode ') + (hero.progress + 1) + ' up next'
+    ? `${hero.mediaType === 'MANGA' ? 'Chapter' : 'Episode'} ${hero.progress + 1} up next`
     : null;
 
   return (
@@ -79,8 +91,7 @@ export default function HomeScreen() {
 
       <PullToRefresh
         onRefresh={onRefresh}
-        scrollYRef={scrollY}
-        contentContainerStyle={{ paddingBottom: clearance }}
+        contentContainerStyle={{ paddingBottom: tabBarClearance }}
         showsVerticalScrollIndicator={false}
       >
         <SyncBanner />
@@ -119,7 +130,7 @@ export default function HomeScreen() {
               {roster.map((entry) => (
                 <RosterCard key={entry.anilistId} entry={entry} />
               ))}
-              <View style={{ width: ROSTER_CARD_WIDTH * 0 + spacing.xs }} />
+              <View style={{ width: spacing.xs }} />
             </ScrollView>
           </View>
         ) : null}
@@ -127,28 +138,14 @@ export default function HomeScreen() {
         <View style={{ marginTop: spacing.xl }}>
           <SectionHeader title="Airing soon" />
 
-          {airing.isLoading ? (
-            <View style={{ paddingHorizontal: spacing.gutter }}>
-              <SkeletonRow />
-              <SkeletonRow />
-            </View>
-          ) : airing.isError ? (
-            <ErrorState error={airing.error} onRetry={() => void airing.refetch()} compact />
-          ) : relevantAiring.length > 0 ? (
-            relevantAiring.map((item) => (
-              <AiringRow key={item.id + ':' + item.episode} item={item} />
-            ))
-          ) : (
-            <Text
-              variant="bodyMd"
-              colour="onSurfaceVariant"
-              style={{ paddingHorizontal: spacing.gutter }}
-            >
-              {hero
-                ? 'No episodes scheduled for your list in the next week.'
-                : 'Track an airing series to see countdowns here.'}
-            </Text>
-          )}
+          {renderAiringSection({
+            isLoading: airingQuery.isLoading,
+            isError: airingQuery.isError,
+            error: airingQuery.error,
+            onRetry: () => void airingQuery.refetch(),
+            items: trackedAiring,
+            hasHero: hero !== null,
+          })}
         </View>
 
         {hero ? (
@@ -157,10 +154,52 @@ export default function HomeScreen() {
             colour="onSurfaceVariant"
             style={{ paddingHorizontal: spacing.gutter, marginTop: spacing.xl }}
           >
-            {'Last logged: ' + resolveTitle(hero.snapshot.title, language)}
+            {`Last logged: ${resolveTitle(hero.snapshot.title, language)}`}
           </Text>
         ) : null}
       </PullToRefresh>
     </Screen>
+  );
+}
+
+function renderAiringSection(props: {
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  onRetry: () => void;
+  items: AiringScheduleItem[];
+  hasHero: boolean;
+}) {
+  const { isLoading, isError, error, onRetry, items, hasHero } = props;
+
+  if (isLoading) {
+    return (
+      <View style={{ paddingHorizontal: spacing.gutter }}>
+        <SkeletonRow />
+        <SkeletonRow />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return <ErrorState error={error} onRetry={onRetry} compact />;
+  }
+
+  if (items.length > 0) {
+    return (
+      <>
+        {items.map((item) => (
+          <AiringRow key={`${item.id}:${item.episode}`} item={item} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <Text variant="bodyMd" colour="onSurfaceVariant" style={{ paddingHorizontal: spacing.gutter }}>
+      {hasHero
+        ? 'No episodes scheduled for your list in the next week.'
+        : 'Track an airing series to see countdowns here.'}
+    </Text>
   );
 }

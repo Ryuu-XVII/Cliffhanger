@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, useWindowDimensions, View, type LayoutRectangle } from 'react-native';
 
 import { useAiringInfo, useMalStats, useMedia } from '@/api/hooks';
@@ -136,12 +136,12 @@ export default function TitleDetailScreen() {
       }
       if (entry) {
         setStatus(anilistId, status);
-        toast.show('Moved to ' + STATUS_LABELS[status].toLowerCase(), 'success');
+        toast.show(`Moved to ${STATUS_LABELS[status].toLowerCase()}`, 'success');
       } else {
         const created = add(media.data, status);
         // Fill in the AniList id cross-reference for Jikan lookups (§4.6).
         update(created.anilistId, { malId: media.data.idMal ?? null, snapshot: toSnapshot(media.data) });
-        toast.show('Added to ' + STATUS_LABELS[status].toLowerCase(), 'success');
+        toast.show(`Added to ${STATUS_LABELS[status].toLowerCase()}`, 'success');
       }
       setStatusOpen(false);
     },
@@ -178,7 +178,7 @@ export default function TitleDetailScreen() {
         contentContainerStyle={{ paddingBottom: spacing.xl * 2 }}
       >
         <View style={{ height: width * 0.52 }}>
-          <Cover uri={bannerUri} radius={0} accessibilityLabel={title + ' banner'} />
+          <Cover uri={bannerUri} radius={0} accessibilityLabel={`${title} banner`} />
           <Scrim height="70%" to="rgba(19,19,20,1)" />
         </View>
 
@@ -195,7 +195,7 @@ export default function TitleDetailScreen() {
               width={coverWidth}
               height={coverHeight}
               radius={radii.md}
-              accessibilityLabel={title + ' cover art'}
+              accessibilityLabel={`${title} cover art`}
             />
           </View>
 
@@ -232,7 +232,7 @@ export default function TitleDetailScreen() {
             <Pressable
               onPress={() => setStatusOpen(true)}
               accessibilityRole="button"
-              accessibilityLabel={'Status: ' + STATUS_LABELS[entry.status] + '. Change it'}
+              accessibilityLabel={`Status: ${STATUS_LABELS[entry.status]}. Change it`}
             >
               <StatusPill status={entry.status} />
             </Pressable>
@@ -246,7 +246,7 @@ export default function TitleDetailScreen() {
 
           {entry?.score !== null && entry?.score !== undefined ? (
             <Chip
-              label={'You: ' + formatScore(entry.score, settings.scoreFormat)}
+              label={`You: ${formatScore(entry.score, settings.scoreFormat)}`}
               tint={colors.secondary}
             />
           ) : null}
@@ -260,8 +260,8 @@ export default function TitleDetailScreen() {
               <Button
                 label={
                   total !== null && entry.progress >= total
-                    ? 'All ' + unitNoun(entry, true) + ' logged'
-                    : 'Update progress (' + (entry.mediaType === 'MANGA' ? 'Ch ' : 'Ep ') + (entry.progress + 1) + ')'
+                    ? `All ${unitNoun(entry, true)} logged`
+                    : `Update progress (${entry.mediaType === 'MANGA' ? 'Ch' : 'Ep'} ${entry.progress + 1})`
                 }
                 icon={<Ionicons name="add" size={18} color={colors.onPrimary} />}
                 disabled={total !== null && entry.progress >= total}
@@ -275,11 +275,11 @@ export default function TitleDetailScreen() {
                     value={entry.progress / total}
                     height={6}
                     accessibilityLabel={
-                      Math.round((entry.progress / total) * 100) + ' percent watched'
+                      `${Math.round((entry.progress / total) * 100)} percent watched`
                     }
                   />
                   <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginTop: spacing.xs }}>
-                    {entry.progress + ' of ' + total + ' ' + unitNoun(entry, true)}
+                    {`${entry.progress} of ${total} ${unitNoun(entry, true)}`}
                   </Text>
                 </View>
               ) : null}
@@ -346,12 +346,12 @@ export default function TitleDetailScreen() {
                 value={media.data?.episodes ? String(media.data.episodes) : 'Ongoing'}
               />
               {media.data?.duration ? (
-                <MetaRow label="Runtime" value={media.data.duration + ' min'} />
+                <MetaRow label="Runtime" value={`${media.data.duration} min`} />
               ) : null}
               {mal.data?.score ? (
                 <MetaRow
                   label="MyAnimeList"
-                  value={mal.data.score.toFixed(2) + (mal.data.rank ? '  ·  #' + mal.data.rank : '')}
+                  value={`${mal.data.score.toFixed(2)}${mal.data.rank ? `  ·  #${mal.data.rank}` : ''}`}
                 />
               ) : null}
             </View>
@@ -384,7 +384,7 @@ export default function TitleDetailScreen() {
                   onPress={() => {
                     const removed = remove(anilistId);
                     if (removed) {
-                      toast.undo('Removed ' + title, () => useLibraryStore.getState().restore(removed));
+                      toast.undo(`Removed ${title}`, () => useLibraryStore.getState().restore(removed));
                     }
                   }}
                 />

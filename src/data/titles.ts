@@ -5,19 +5,19 @@ import type { TitleLanguage, TitleSet } from './models';
  * no entry in the preferred language falls back romaji then english then
  * native, so a card never renders blank.
  */
+const FALLBACK_ORDER: Record<TitleLanguage, Array<keyof TitleSet>> = {
+  romaji: ['romaji', 'english', 'native'],
+  english: ['english', 'romaji', 'native'],
+  native: ['native', 'romaji', 'english'],
+};
+
 export function resolveTitle(
   title: TitleSet | null | undefined,
   language: TitleLanguage,
 ): string {
   if (!title) return 'Untitled';
 
-  const order: Record<TitleLanguage, Array<keyof TitleSet>> = {
-    romaji: ['romaji', 'english', 'native'],
-    english: ['english', 'romaji', 'native'],
-    native: ['native', 'romaji', 'english'],
-  };
-
-  for (const key of order[language]) {
+  for (const key of FALLBACK_ORDER[language]) {
     const value = title[key];
     if (value && value.trim().length > 0) return value;
   }

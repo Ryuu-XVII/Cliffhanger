@@ -42,5 +42,5 @@ export function previousSeason(ref: SeasonRef): SeasonRef {
 }
 
 export function seasonLabel(ref: SeasonRef): string {
-  return SEASON_LABELS[ref.season] + ' ' + ref.year;
+  return `${SEASON_LABELS[ref.season]} ${ref.year}`;
 }

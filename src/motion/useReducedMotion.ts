@@ -33,4 +33,3 @@ export function useReducedMotion(): boolean {
 
   return osReduced || appReduced;
 }
-

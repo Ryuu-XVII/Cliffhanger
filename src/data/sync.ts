@@ -96,10 +96,11 @@ async function run(uid: string): Promise<SyncResult> {
 
   for (const incoming of remoteEntries) {
     newestRemote = Math.max(newestRemote, incoming.updatedAt ?? 0);
-    const existing = local[String(incoming.anilistId)];
+    const localKey = String(incoming.anilistId);
+    const existing = local[localKey];
 
     if (!existing) {
-      local[String(incoming.anilistId)] = incoming;
+      local[localKey] = incoming;
       result.pulled += 1;
       continue;
     }
@@ -115,7 +116,7 @@ async function run(uid: string): Promise<SyncResult> {
     });
 
     if (winner === 'remote') {
-      local[String(incoming.anilistId)] = incoming;
+      local[localKey] = incoming;
       result.pulled += 1;
     }
   }

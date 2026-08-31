@@ -50,7 +50,7 @@ export function isAniListConfigured() { return ANILIST_CLIENT_ID.length > 0; }
 export async function linkAniList(): Promise<string> {
   if (!isAniListConfigured()) throw new Error('AniList linking is not configured');
   const redirectUri = AuthSession.makeRedirectUri({ scheme: 'cliffhanger', path: 'anilist-auth' });
-  const authUrl = 'https://anilist.co/api/v2/oauth/authorize?client_id=' + encodeURIComponent(ANILIST_CLIENT_ID) + '&response_type=token';
+  const authUrl = `https://anilist.co/api/v2/oauth/authorize?client_id=${encodeURIComponent(ANILIST_CLIENT_ID)}&response_type=token`;
   const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
   if (result.type !== 'success') throw new Error('AniList linking was cancelled');
   const params = new URLSearchParams(result.url.split('#')[1] ?? '');

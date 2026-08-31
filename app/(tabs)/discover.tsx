@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 
@@ -25,6 +25,13 @@ import { Text } from '@/ui/Text';
  * grid. Every shelf has its own loading and error state so one failing request
  * never takes the screen down with it.
  */
+
+const RAIL_CARD_MAX_WIDTH = 168;
+const RAIL_CARD_WIDTH_RATIO = 0.42;
+const MAX_RAIL_ITEMS = 15;
+const SEASON_PREVIEW_TILES = 4;
+const MAX_GENRE_CHIPS = 18;
+
 export default function DiscoverScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -42,19 +49,27 @@ export default function DiscoverScreen() {
   const seasonal = useSeasonBrowse(season.season, season.year);
   const genres = useGenres();
 
-  const railCardWidth = Math.min(168, width * 0.42);
+  const railCardWidth = Math.min(RAIL_CARD_MAX_WIDTH, width * RAIL_CARD_WIDTH_RATIO);
+  const seasonTileWidth = (width - spacing.gutter * 2 - spacing.sm) / 2;
+
+  const refetchTrending = trending.refetch;
+  const refetchTopRated = topRated.refetch;
+  const refetchTopMovies = topMovies.refetch;
+  const refetchAiringSoon = airingSoon.refetch;
+  const refetchSeasonal = seasonal.refetch;
 
   const onRefresh = useCallback(async () => {
     await Promise.all([
-      trending.refetch(),
-      topRated.refetch(),
-      topMovies.refetch(),
-      airingSoon.refetch(),
-      seasonal.refetch(),
+      refetchTrending(),
+      refetchTopRated(),
+      refetchTopMovies(),
+      refetchAiringSoon(),
+      refetchSeasonal(),
     ]);
-  }, [trending, topRated, topMovies, airingSoon, seasonal]);
+  }, [refetchTrending, refetchTopRated, refetchTopMovies, refetchAiringSoon, refetchSeasonal]);
 
-  const seasonalItems = seasonal.data?.pages.flatMap((page) => page.items).slice(0, 4) ?? [];
+  const seasonalItems =
+    seasonal.data?.pages.flatMap((page) => page.items).slice(0, SEASON_PREVIEW_TILES) ?? [];
 
   return (
     <Screen>
@@ -121,17 +136,13 @@ export default function DiscoverScreen() {
               }}
             >
               {seasonal.isLoading
-                ? [0, 1, 2, 3].map((index) => (
-                    <View key={index} style={{ width: (width - spacing.gutter * 2 - spacing.sm) / 2 }}>
-                      <SkeletonCard width={(width - spacing.gutter * 2 - spacing.sm) / 2} />
+                ? Array.from({ length: SEASON_PREVIEW_TILES }, (_, index) => (
+                    <View key={index} style={{ width: seasonTileWidth }}>
+                      <SkeletonCard width={seasonTileWidth} />
                     </View>
                   ))
                 : seasonalItems.map((media) => (
-                    <SeasonTile
-                      key={media.id}
-                      media={media}
-                      width={(width - spacing.gutter * 2 - spacing.sm) / 2}
-                    />
+                    <SeasonTile key={media.id} media={media} width={seasonTileWidth} />
                   ))}
             </View>
           )}
@@ -169,7 +180,7 @@ export default function DiscoverScreen() {
               paddingHorizontal: spacing.gutter,
             }}
           >
-            {(genres.data ?? DEFAULT_GENRES).slice(0, 18).map((genre) => (
+            {(genres.data ?? DEFAULT_GENRES).slice(0, MAX_GENRE_CHIPS).map((genre) => (
               <Chip
                 key={genre}
                 label={genre}
@@ -233,7 +244,7 @@ function Rail({
         >
           {query.isLoading
             ? [0, 1, 2].map((index) => <SkeletonCard key={index} width={cardWidth} />)
-            : (query.data?.items ?? []).slice(0, 15).map((media) => (
+            : (query.data?.items ?? []).slice(0, MAX_RAIL_ITEMS).map((media) => (
                 <MediaCard key={media.id} media={media} width={cardWidth} scrollY={scrollY} />
               ))}
         </ScrollView>

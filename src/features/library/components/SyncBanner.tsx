@@ -13,6 +13,10 @@ import { Text } from '@/ui/Text';
  * something to say - queued writes or a conflict - and never as permanent
  * chrome, because a badge that is always there stops being read.
  */
+function changeCount(pending: number): string {
+  return `${pending} ${pending === 1 ? 'change' : 'changes'}`;
+}
+
 export function SyncBanner() {
   const pending = useLibraryStore((state) => state.pending);
   const syncing = useLibraryStore((state) => state.syncing);
@@ -49,7 +53,7 @@ export function SyncBanner() {
         tone={colors.outline}
         message={
           pending > 0
-            ? 'Offline. ' + pending + (pending === 1 ? ' change' : ' changes') + ' will sync when you reconnect.'
+            ? `Offline. ${changeCount(pending)} will sync when you reconnect.`
             : 'Offline. Your library is still here.'
         }
       />
@@ -62,9 +66,7 @@ export function SyncBanner() {
         icon={syncing ? 'sync-outline' : 'cloud-upload-outline'}
         tone={colors.primary}
         message={
-          syncing
-            ? 'Syncing your changes'
-            : pending + (pending === 1 ? ' change waiting to sync' : ' changes waiting to sync')
+          syncing ? 'Syncing your changes' : `${changeCount(pending)} waiting to sync`
         }
         actionLabel={syncing ? undefined : 'Sync now'}
         onPress={syncing ? undefined : () => void sync()}

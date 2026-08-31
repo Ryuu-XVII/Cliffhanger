@@ -1,5 +1,4 @@
 import Constants from 'expo-constants';
-import React from 'react';
 import { Platform, ScrollView, View } from 'react-native';
 
 import { radii, spacing } from '@/theme/tokens';
@@ -36,7 +35,7 @@ export default function AboutScreen() {
         >
           <Text variant="displayLg">Cliffhanger</Text>
           <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginTop: spacing.xs }}>
-            {'Version ' + version + (buildNumber ? ' (' + buildNumber + ')' : '')}
+            {`Version ${version}${buildNumber ? ` (${buildNumber})` : ''}`}
           </Text>
         </View>
 

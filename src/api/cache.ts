@@ -26,7 +26,7 @@ interface Envelope<T> {
 }
 
 export function cacheGet<T>(key: string, options?: { allowStale?: boolean }): T | null {
-  const envelope = readJson<Envelope<T>>(PREFIX + key);
+  const envelope = readJson<Envelope<T>>(`${PREFIX}${key}`);
   if (!envelope) return null;
   if (envelope.expiresAt > Date.now()) return envelope.data;
   if (options?.allowStale) return envelope.data;
@@ -35,13 +35,17 @@ export function cacheGet<T>(key: string, options?: { allowStale?: boolean }): T 
 
 /** Stale entries are still useful as an offline fallback (§4.5.4). */
 export function cacheGetStale<T>(key: string): { data: T; fetchedAt: number } | null {
-  const envelope = readJson<Envelope<T>>(PREFIX + key);
+  const envelope = readJson<Envelope<T>>(`${PREFIX}${key}`);
   return envelope ? { data: envelope.data, fetchedAt: envelope.fetchedAt } : null;
 }
 
 export function cacheSet<T>(key: string, data: T, ttlMs: number): void {
   const now = Date.now();
-  writeJson(PREFIX + key, { data, fetchedAt: now, expiresAt: now + ttlMs } satisfies Envelope<T>);
+  writeJson(`${PREFIX}${key}`, {
+    data,
+    fetchedAt: now,
+    expiresAt: now + ttlMs,
+  } satisfies Envelope<T>);
 }
 
 export function cacheClear(): void {

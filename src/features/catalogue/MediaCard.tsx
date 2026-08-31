@@ -46,11 +46,12 @@ export function MediaCard({
   const title = resolveTitle(media.title, language);
   const height = width / aspect.cover;
   const score = media.averageScore ? (media.averageScore / 10).toFixed(1) : null;
+  const coverUri = media.coverImage?.extraLarge ?? media.coverImage?.large ?? null;
 
   const open = useCallback(async () => {
-    await captureHero(coverRef.current, media.id, media.coverImage?.extraLarge ?? media.coverImage?.large ?? null);
+    await captureHero(coverRef.current, media.id, coverUri);
     router.push({ pathname: '/title/[id]', params: { id: String(media.id) } });
-  }, [router, media]);
+  }, [router, media.id, coverUri]);
 
   return (
     <PressableScale
@@ -59,7 +60,7 @@ export function MediaCard({
       radiusFrom={radii.md}
       radiusTo={radii.lg}
       accessibilityLabel={title}
-      accessibilityHint={'Opens details for ' + title}
+      accessibilityHint={`Opens details for ${title}`}
     >
       <View ref={coverRef} collapsable={false} style={{ width, height }}>
         <Cover

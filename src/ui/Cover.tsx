@@ -19,6 +19,9 @@ const AnimatedImage = Animated.createAnimatedComponent(Image);
  */
 const PLACEHOLDER_BLURHASH = 'L03[xY00~q00_3M{ofofj[ayj[ay';
 
+/** Scroll distance either side of the card over which the drift reaches its extreme. */
+const PARALLAX_SCROLL_SPAN = 600;
+
 export interface CoverProps {
   uri: string | null | undefined;
   width?: DimensionValue;
@@ -63,14 +66,25 @@ export function Cover({
     const relative = scrollY.value - itemOffset;
     const translateY = interpolate(
       relative,
-      [-600, 0, 600],
+      [-PARALLAX_SCROLL_SPAN, 0, PARALLAX_SCROLL_SPAN],
       [parallaxRange, 0, -parallaxRange],
       'clamp',
     );
     return { transform: [{ translateY }] };
   }, [itemOffset, parallaxRange, reduced]);
 
-  const source = uri ? { uri } : undefined;
+  const imageProps = {
+    source: uri ? { uri } : undefined,
+    placeholder: { blurhash: PLACEHOLDER_BLURHASH },
+    placeholderContentFit: 'cover' as const,
+    contentFit,
+    transition: 220,
+    cachePolicy: 'disk' as const,
+    priority,
+    recyclingKey: uri ?? 'empty',
+    accessible: accessibilityLabel !== undefined,
+    accessibilityLabel,
+  };
 
   return (
     <View
@@ -87,16 +101,7 @@ export function Cover({
     >
       {parallaxEnabled ? (
         <AnimatedImage
-          source={source}
-          placeholder={{ blurhash: PLACEHOLDER_BLURHASH }}
-          placeholderContentFit="cover"
-          contentFit={contentFit}
-          transition={220}
-          cachePolicy="disk"
-          priority={priority}
-          recyclingKey={uri ?? 'empty'}
-          accessible={accessibilityLabel !== undefined}
-          accessibilityLabel={accessibilityLabel}
+          {...imageProps}
           style={[
             StyleSheet.absoluteFill,
             { top: -parallaxRange, bottom: -parallaxRange, height: undefined },
@@ -104,19 +109,7 @@ export function Cover({
           ]}
         />
       ) : (
-        <Image
-          source={source}
-          placeholder={{ blurhash: PLACEHOLDER_BLURHASH }}
-          placeholderContentFit="cover"
-          contentFit={contentFit}
-          transition={220}
-          cachePolicy="disk"
-          priority={priority}
-          recyclingKey={uri ?? 'empty'}
-          accessible={accessibilityLabel !== undefined}
-          accessibilityLabel={accessibilityLabel}
-          style={StyleSheet.absoluteFill}
-        />
+        <Image {...imageProps} style={StyleSheet.absoluteFill} />
       )}
     </View>
   );

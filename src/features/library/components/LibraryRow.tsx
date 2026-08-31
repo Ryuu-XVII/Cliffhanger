@@ -43,7 +43,7 @@ export function LibraryRow({ entry }: { entry: LibraryEntry }) {
       rotateTo={0}
       radiusFrom={radii.md}
       radiusTo={radii.lg}
-      accessibilityLabel={title + ', ' + noun + ' ' + entry.progress + (total ? ' of ' + total : '')}
+      accessibilityLabel={`${title}, ${noun} ${entry.progress}${total ? ` of ${total}` : ''}`}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -79,12 +79,12 @@ export function LibraryRow({ entry }: { entry: LibraryEntry }) {
             style={{ flex: 1 }}
             accessibilityLabel={
               total
-                ? Math.round((entry.progress / total) * 100) + ' percent watched'
-                : entry.progress + ' watched'
+                ? `${Math.round((entry.progress / total) * 100)} percent watched`
+                : `${entry.progress} watched`
             }
           />
           <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginLeft: spacing.sm }}>
-            {entry.progress + (total ? '/' + total : '')}
+            {total ? `${entry.progress}/${total}` : String(entry.progress)}
           </Text>
         </View>
       </View>
@@ -94,7 +94,7 @@ export function LibraryRow({ entry }: { entry: LibraryEntry }) {
         disabled={atEnd}
         celebrate={!atEnd}
         onIncrement={() => logEpisode(entry.anilistId)}
-        accessibilityLabel={'Log one ' + noun + ' of ' + title}
+        accessibilityLabel={`Log one ${noun} of ${title}`}
         style={{ marginLeft: spacing.md }}
       />
     </PressableScale>

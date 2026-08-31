@@ -35,14 +35,13 @@ export async function anilistRequest<T>(
     Accept: 'application/json',
   };
 
-  if (options.authenticated) {
-    if (!accessToken) {
-      throw new ApiError('unauthorized', 'AniList account is not linked');
-    }
-    headers.Authorization = 'Bearer ' + accessToken;
-  } else if (accessToken) {
-    // Authenticated reads respect the account adult-content and title settings.
-    headers.Authorization = 'Bearer ' + accessToken;
+  if (options.authenticated && !accessToken) {
+    throw new ApiError('unauthorized', 'AniList account is not linked');
+  }
+  if (accessToken) {
+    // Sent even on unauthenticated calls: authenticated reads respect the
+    // account's adult-content and title settings.
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const response = await request(ANILIST_ENDPOINT, {

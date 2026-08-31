@@ -106,7 +106,7 @@ export function SectionHeader({
           onPress={onAction}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={actionLabel + ' ' + title}
+          accessibilityLabel={`${actionLabel} ${title}`}
         >
           <Text variant="labelLg" colour={colors.primary}>
             {actionLabel}

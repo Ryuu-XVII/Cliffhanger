@@ -64,15 +64,14 @@ export function useLibraryView(): {
   const { status, sort, descending, listId, genre } = useLibraryViewStore();
 
   return useMemo(() => {
-    const all = Object.values(entries);
-    const filtered = all.filter((entry) => {
+    const filtered = Object.values(entries).filter((entry) => {
       if (entry.status !== status) return false;
       if (listId && !entry.customListIds.includes(listId)) return false;
       if (genre && !entry.snapshot.genres.includes(genre)) return false;
       return true;
     });
 
-    const sorted = [...filtered].sort((a, b) => compare(a, b, sort, language));
+    const sorted = filtered.sort((a, b) => compare(a, b, sort, language));
     return {
       entries: descending ? sorted.reverse() : sorted,
       total: filtered.length,

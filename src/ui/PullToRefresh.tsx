@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View, type ScrollViewProps } from 'react-native';
 import Animated, {
-  useAnimatedRef,
   useAnimatedScrollHandler,
   useSharedValue,
   type SharedValue,
@@ -41,12 +40,13 @@ export function PullToRefresh({
   onRefresh,
   scrollYRef,
   children,
-  onScroll,
+  // Pulled out of `rest` deliberately: `rest` is spread after `onScroll` below,
+  // so a caller-supplied handler would replace the worklet that feeds scrollY.
+  onScroll: _onScroll,
   ...rest
 }: PullToRefreshProps) {
   const { colors } = useTheme();
 
-  const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const internalScrollY = useSharedValue(0);
   const scrollY = scrollYRef ?? internalScrollY;
 
@@ -79,7 +79,6 @@ export function PullToRefresh({
   return (
     <View style={styles.fill}>
       <Animated.ScrollView
-        ref={scrollRef}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
         refreshControl={

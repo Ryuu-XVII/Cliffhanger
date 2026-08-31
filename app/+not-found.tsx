@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
 
 import { Screen } from '@/ui/Screen';
 import { ScreenHeader } from '@/ui/Header';

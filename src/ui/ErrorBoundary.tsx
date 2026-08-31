@@ -95,7 +95,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             }}
           >
             <Text style={{ color: palette.error, fontSize: 12, fontFamily: 'monospace' }}>
-              {error.message + '\n\n' + (error.stack ?? '')}
+              {`${error.message}\n\n${error.stack ?? ''}`}
             </Text>
           </ScrollView>
         ) : null}

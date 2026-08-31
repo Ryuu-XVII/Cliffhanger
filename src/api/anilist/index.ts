@@ -32,6 +32,9 @@ export * from './types';
 export { setAniListToken, hasAniListToken } from './client';
 
 const PER_PAGE = 24;
+/** AniList rejects very large id_in sets, so multi-id lookups are chunked. */
+const IDS_PER_REQUEST = 50;
+const AIRING_PER_PAGE = 50;
 
 export interface SearchParams {
   query: string;
@@ -105,6 +108,34 @@ function nonEmpty(values: string[] | undefined): string[] | undefined {
   return values && values.length > 0 ? values : undefined;
 }
 
+/** The filter fields a search can carry on its own, with no query text. */
+export type SearchFilters = Omit<SearchParams, 'query' | 'page' | 'type' | 'sort' | 'includeAdult'>;
+
+/** True when the filters alone are enough to run a search without query text. */
+export function hasSearchFilters(filters: SearchFilters): boolean {
+  const lists = [
+    filters.format,
+    filters.status,
+    filters.genre,
+    filters.tag,
+    filters.source,
+    filters.excludeGenre,
+    filters.excludeTag,
+  ];
+  if (lists.some((list) => list && list.length > 0)) return true;
+  return Boolean(
+    filters.season ||
+      filters.seasonYear ||
+      filters.yearFrom ||
+      filters.yearTo ||
+      filters.minScore ||
+      filters.minEpisodes ||
+      filters.maxEpisodes ||
+      filters.maxDuration ||
+      filters.countryOfOrigin,
+  );
+}
+
 /** F-01. Callers debounce; this layer caches so back-navigation is free. */
 export async function searchMedia(params: SearchParams): Promise<Paged<AniListMediaLite>> {
   const {
@@ -133,24 +164,7 @@ export async function searchMedia(params: SearchParams): Promise<Paged<AniListMe
   } = params;
 
   const trimmed = query.trim();
-  const hasFilter = Boolean(
-    nonEmpty(format) ||
-      nonEmpty(status) ||
-      nonEmpty(genre) ||
-      nonEmpty(tag) ||
-      nonEmpty(source) ||
-      nonEmpty(excludeGenre) ||
-      nonEmpty(excludeTag) ||
-      season ||
-      seasonYear ||
-      yearFrom ||
-      yearTo ||
-      minScore ||
-      minEpisodes ||
-      maxEpisodes ||
-      maxDuration ||
-      countryOfOrigin,
-  );
+  const hasFilter = hasSearchFilters(params);
   if (trimmed.length === 0 && !hasFilter) {
     return { items: [], hasNextPage: false, page: pageNumber };
   }
@@ -258,7 +272,7 @@ export function relaxQuery(trimmed: string): string | null {
 
 /** F-02. Finished series get the 30-day tier (§4.5.2). */
 export async function getMedia(id: number): Promise<AniListMedia> {
-  const key = 'anilist:media:' + id;
+  const key = `anilist:media:${id}`;
 
   return withCache(key, TTL.title, async () => {
     const data = await anilistRequest<{ Media: AniListMedia | null }>(
@@ -266,7 +280,7 @@ export async function getMedia(id: number): Promise<AniListMedia> {
       { id },
       { priority: 'high' },
     );
-    if (!data.Media) throw new Error('Media ' + id + ' not found');
+    if (!data.Media) throw new Error(`Media ${id} not found`);
     const media = data.Media;
     // Re-stamp with the longer TTL when the series can never change again.
     const ttl =
@@ -279,8 +293,8 @@ export async function getMedia(id: number): Promise<AniListMedia> {
 export async function getMediaByIds(ids: number[]): Promise<AniListMediaLite[]> {
   if (ids.length === 0) return [];
   const chunks: number[][] = [];
-  for (let index = 0; index < ids.length; index += 50) {
-    chunks.push(ids.slice(index, index + 50));
+  for (let index = 0; index < ids.length; index += IDS_PER_REQUEST) {
+    chunks.push(ids.slice(index, index + IDS_PER_REQUEST));
   }
 
   const results: AniListMediaLite[] = [];
@@ -346,7 +360,7 @@ export async function searchStudios(query: string): Promise<AniListStudio[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 
-  const key = 'anilist:studio-search:' + trimmed.toLowerCase();
+  const key = `anilist:studio-search:${trimmed.toLowerCase()}`;
   return withCache(key, TTL.browse, async () => {
     const data = await anilistRequest<{ Page: { studios: AniListStudio[] | null } | null }>(
       STUDIO_SEARCH_QUERY,
@@ -432,7 +446,7 @@ export const discover = {
       genre,
       page: pageNumber,
       includeAdult,
-      cacheKey: 'genre:' + genre.toLowerCase(),
+      cacheKey: `genre:${genre.toLowerCase()}`,
     }),
 };
 
@@ -451,7 +465,7 @@ export function getSeason(
     page: pageNumber,
     includeAdult,
     type,
-    cacheKey: 'season:' + type + ':' + season + ':' + year,
+    cacheKey: `season:${type}:${season}:${year}`,
   });
 }
 
@@ -468,7 +482,7 @@ export function getGenres(): Promise<string[]> {
  * the genre list instead of silently hiding more than the genre list does.
  */
 export function getMediaTags(includeAdult = false): Promise<AniListMediaTag[]> {
-  const key = 'anilist:media-tags:' + (includeAdult ? 'adult' : 'sfw');
+  const key = `anilist:media-tags:${includeAdult ? 'adult' : 'sfw'}`;
   return withCache(key, TTL.finishedTitle, async () => {
     const data = await anilistRequest<{ MediaTagCollection: AniListMediaTag[] | null }>(TAGS_QUERY);
     return (data.MediaTagCollection ?? []).filter(
@@ -493,7 +507,12 @@ export async function getAiringSchedule(
         pageInfo: { hasNextPage: boolean | null } | null;
         airingSchedules: AiringScheduleItem[] | null;
       } | null;
-    }>(AIRING_SCHEDULE_QUERY, { page: pageNumber, perPage: 50, from: fromSeconds, to: toSeconds });
+    }>(AIRING_SCHEDULE_QUERY, {
+      page: pageNumber,
+      perPage: AIRING_PER_PAGE,
+      from: fromSeconds,
+      to: toSeconds,
+    });
 
     return {
       items: data.Page?.airingSchedules ?? [],
@@ -599,7 +618,7 @@ export async function deleteMediaListEntry(id: number): Promise<boolean> {
 
 /** Cheap warm of the lite cache used by grids while the full detail loads. */
 function primeMediaLite(media: AniListMediaLite): void {
-  cacheSet('anilist:lite:' + media.id, media, TTL.title);
+  cacheSet(`anilist:lite:${media.id}`, media, TTL.title);
 }
 
 /**
@@ -609,6 +628,6 @@ function primeMediaLite(media: AniListMediaLite): void {
  * heavier query (synopsis, characters, staff, recommendations) is in flight.
  */
 export function getCachedMediaLite(id: number): AniListMediaLite | null {
-  return cacheGet<AniListMediaLite>('anilist:lite:' + id);
+  return cacheGet<AniListMediaLite>(`anilist:lite:${id}`);
 }
 

@@ -88,12 +88,13 @@ function sortForRegion(options: StreamingOption[], region: string): StreamingOpt
     JP: ['Bilibili', 'Netflix', 'Prime Video'],
   };
   const order = preference[region.toUpperCase()] ?? preference.ZA ?? [];
+  /** Anything the region has no opinion on sorts after everything it does. */
+  const rankOf = (label: string) => {
+    const rank = order.indexOf(label);
+    return rank === -1 ? order.length : rank;
+  };
 
-  return [...options].sort((a, b) => {
-    const rankA = order.indexOf(a.label);
-    const rankB = order.indexOf(b.label);
-    return (rankA === -1 ? 99 : rankA) - (rankB === -1 ? 99 : rankB);
-  });
+  return [...options].sort((a, b) => rankOf(a.label) - rankOf(b.label));
 }
 
 /** Non-streaming official links (AniList, MAL, official site) for the detail screen. */
@@ -120,6 +121,13 @@ export function infoLinks(links: AniListExternalLink[] | null | undefined): Stre
  * non-goal still binds: anything not on the official allow-list is dropped, no
  * matter which service reported it.
  */
+/** AnimeSchedule encodes sub/dub in the display name rather than in a field. */
+function subOrDub(name: string): 'Dub' | 'Sub' | null {
+  if (/dub/i.test(name)) return 'Dub';
+  if (/sub/i.test(name)) return 'Sub';
+  return null;
+}
+
 export function mergeStreamingSources(
   fromAniList: StreamingOption[],
   fromSchedule: Array<{ platform: string; name: string; url: string }>,
@@ -144,8 +152,7 @@ export function mergeStreamingSources(
       label: known.label,
       url: stream.url,
       colour: known.colour,
-      // AnimeSchedule encodes sub/dub in the display name rather than a field.
-      language: /dub/i.test(stream.name) ? 'Dub' : /sub/i.test(stream.name) ? 'Sub' : null,
+      language: subOrDub(stream.name),
       icon: null,
     });
     syntheticId -= 1;

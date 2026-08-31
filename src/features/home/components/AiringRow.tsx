@@ -44,9 +44,7 @@ export function AiringRow({ item }: { item: AiringScheduleItem }) {
       rotateTo={0}
       radiusFrom={radii.md}
       radiusTo={radii.lg}
-      accessibilityLabel={
-        title + ', episode ' + item.episode + ', airs ' + dayLabel + ' in ' + formatCountdown(secondsUntil)
-      }
+      accessibilityLabel={`${title}, episode ${item.episode}, airs ${dayLabel} in ${formatCountdown(secondsUntil)}`}
       style={{
         height: 92,
         marginHorizontal: spacing.gutter,
@@ -85,7 +83,7 @@ export function AiringRow({ item }: { item: AiringScheduleItem }) {
         </View>
 
         <Text variant="bodyMd" numberOfLines={1} style={{ maxWidth: '78%' }}>
-          {title + ' · Ep ' + item.episode}
+          {`${title} · Ep ${item.episode}`}
         </Text>
       </View>
 

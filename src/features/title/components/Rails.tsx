@@ -35,15 +35,13 @@ export function RelationsRail({ edges }: { edges: AniListRelationEdge[] | null |
     <RailShell title="Related entries">
       {valid.map((edge) => (
         <PressableScale
-          key={edge.node.id + ':' + (edge.relationType ?? '')}
+          key={`${edge.node.id}:${edge.relationType ?? ''}`}
           onPress={() =>
             router.push({ pathname: '/title/[id]', params: { id: String(edge.node.id) } })
           }
           radiusFrom={radii.md}
           radiusTo={radii.lg}
-          accessibilityLabel={
-            resolveTitle(edge.node.title, language) + ', ' + relationLabel(edge.relationType)
-          }
+          accessibilityLabel={`${resolveTitle(edge.node.title, language)}, ${relationLabel(edge.relationType)}`}
           style={{ width: 124 }}
         >
           <Cover
@@ -137,7 +135,7 @@ export function StaffRail({ edges }: { edges: AniListStaffEdge[] | null | undefi
   return (
     <RailShell title="Staff">
       {valid.map((edge) => (
-        <View key={edge.node?.id + ':' + (edge.role ?? '')} style={{ width: 112 }}>
+        <View key={`${edge.node?.id}:${edge.role ?? ''}`} style={{ width: 112 }}>
           <Cover
             uri={edge.node?.image?.large ?? null}
             width={112}
@@ -174,7 +172,7 @@ export function StreamingRow({ options }: { options: StreamingOption[] }) {
           onPress={() => void WebBrowser.openBrowserAsync(option.url)}
           scaleTo={0.95}
           rotateTo={0}
-          accessibilityLabel={'Open ' + option.label}
+          accessibilityLabel={`Open ${option.label}`}
           accessibilityHint="Opens the streaming service in your browser"
           style={{
             flexDirection: 'row',

@@ -17,6 +17,22 @@ import { Text } from '@/ui/Text';
  * times after a binge.
  */
 const PAGE = 12;
+/** Later pages are bigger: someone who asked for more is browsing, not glancing. */
+const PAGE_MORE = PAGE * 2;
+
+function episodeStatusLabel(options: {
+  watched: boolean;
+  upNext: boolean;
+  future: boolean;
+  airedAt: number | undefined;
+}): string {
+  const { watched, upNext, future, airedAt } = options;
+  if (watched) return 'Watched';
+  if (future && airedAt !== undefined) return `Airs ${formatDate(airedAt * 1000)}`;
+  if (upNext) return 'Up next';
+  if (airedAt) return `Aired ${formatDate(airedAt * 1000)}`;
+  return 'Not watched';
+}
 
 export function EpisodeList({
   entry,
@@ -36,17 +52,19 @@ export function EpisodeList({
   const { setEpisode } = useProgressActions();
   const [limit, setLimit] = useState(PAGE);
 
-  const airedAt = useMemo(() => {
+  const airedAtByEpisode = useMemo(() => {
     const map = new Map<number, number>();
     for (const node of schedule ?? []) map.set(node.episode, node.airingAt);
     return map;
   }, [schedule]);
 
-  const count = totalEpisodes ?? (schedule?.length ? Math.max(...schedule.map((n) => n.episode)) : 0);
+  const count =
+    totalEpisodes ?? (schedule?.length ? Math.max(...schedule.map((node) => node.episode)) : 0);
   if (count <= 0) return null;
 
   const progress = entry?.progress ?? 0;
   const episodes = Array.from({ length: Math.min(limit, count) }, (_, index) => index + 1);
+  const unitLabel = mediaType === 'MANGA' ? 'Chapter' : 'Episode';
 
   return (
     <View style={{ marginTop: spacing.xl }}>
@@ -57,7 +75,7 @@ export function EpisodeList({
       {episodes.map((episode) => {
         const watched = episode <= progress;
         const upNext = episode === progress + 1;
-        const aired = airedAt.get(episode);
+        const aired = airedAtByEpisode.get(episode);
         const future = aired !== undefined && aired * 1000 > Date.now();
 
         return (
@@ -72,7 +90,7 @@ export function EpisodeList({
               setEpisode(entry.anilistId, watched && episode === progress ? episode - 1 : episode);
             }}
             accessibilityRole="button"
-            accessibilityLabel={(mediaType === 'MANGA' ? 'Chapter ' : 'Episode ') + episode + (watched ? ', read' : '')}
+            accessibilityLabel={`${unitLabel} ${episode}${watched ? ', read' : ''}`}
             accessibilityHint={
               watched ? 'Marks this episode unwatched' : 'Marks everything up to here watched'
             }
@@ -91,18 +109,10 @@ export function EpisodeList({
           >
             <View style={{ flex: 1 }}>
               <Text variant="bodyMd" numberOfLines={1}>
-                {episode + '. ' + (mediaType === 'MANGA' ? 'Chapter ' : 'Episode ') + episode}
+                {`${episode}. ${unitLabel} ${episode}`}
               </Text>
               <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginTop: 2 }}>
-                {watched
-                  ? 'Watched'
-                  : future
-                    ? 'Airs ' + formatDate(aired * 1000)
-                    : upNext
-                      ? 'Up next'
-                      : aired
-                        ? 'Aired ' + formatDate(aired * 1000)
-                        : 'Not watched'}
+                {episodeStatusLabel({ watched, upNext, future, airedAt: aired })}
               </Text>
             </View>
 
@@ -130,13 +140,13 @@ export function EpisodeList({
 
       {count > limit ? (
         <Pressable
-          onPress={() => setLimit((value) => value + PAGE * 2)}
+          onPress={() => setLimit((value) => value + PAGE_MORE)}
           accessibilityRole="button"
-          accessibilityLabel={'Show more episodes, ' + (count - limit) + ' remaining'}
+          accessibilityLabel={`Show more episodes, ${count - limit} remaining`}
           style={{ paddingVertical: spacing.md, alignItems: 'center' }}
         >
           <Text variant="labelLg" colour={colors.primary} uppercase>
-            {'Show ' + Math.min(PAGE * 2, count - limit) + ' more'}
+            {`Show ${Math.min(PAGE_MORE, count - limit)} more`}
           </Text>
         </Pressable>
       ) : null}

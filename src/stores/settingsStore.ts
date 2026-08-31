@@ -50,7 +50,7 @@ function runOneTimeMigration(
   migrationId: string,
   transform: (settings: UserSettings) => UserSettings | null,
 ): { settings: UserSettings; migrated: boolean } {
-  const flagKey = 'settings:migrated-' + migrationId + ':v1:' + scope;
+  const flagKey = `settings:migrated-${migrationId}:v1:${scope}`;
   if (readJson<boolean>(flagKey)) return { settings, migrated: false };
   writeJson(flagKey, true);
   const next = transform(settings);
@@ -82,9 +82,12 @@ function applyDefaultMigrations(
   settings: UserSettings,
   scope: string,
 ): { settings: UserSettings; migrated: boolean } {
-  const a = migrateTitleLanguageDefault(settings, scope);
-  const b = migrateNotificationDefaults(a.settings, scope);
-  return { settings: b.settings, migrated: a.migrated || b.migrated };
+  const titleLanguage = migrateTitleLanguageDefault(settings, scope);
+  const notifications = migrateNotificationDefaults(titleLanguage.settings, scope);
+  return {
+    settings: notifications.settings,
+    migrated: titleLanguage.migrated || notifications.migrated,
+  };
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -116,9 +119,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ settings: next });
     writeJson(KEY, next);
     const uid = get().uid;
-    if (uid) localStore.writeSettings(uid, next);
-
     if (uid) {
+      localStore.writeSettings(uid, next);
       enqueue(uid, { key: 'settings', type: 'settings.update', payload: next });
       scheduleAutoSync(() => void useLibraryStore.getState().sync());
     }

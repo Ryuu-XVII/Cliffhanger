@@ -1,11 +1,15 @@
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-import { getMediaByIds, hasAniListToken, saveMediaListEntry } from '@/api/anilist';
-import { getMediaListCollection, getViewer } from '@/api/anilist';
+import {
+  getMediaByIds,
+  getMediaListCollection,
+  getViewer,
+  hasAniListToken,
+  saveMediaListEntry,
+} from '@/api/anilist';
 import type { LibraryEntry, ListStatus } from '@/data/models';
 import { fromAniListStatus, toAniListStatus, toSnapshot } from '@/data/transforms';
-import { emptyTitleSet } from '@/data/titles';
 import { fuzzyDateToTimestamp, timestampToFuzzyDate } from '@/utils/time';
 import { useLibraryStore } from '@/stores/libraryStore';
 
@@ -55,18 +59,20 @@ export function buildMalXmlExport(entries: LibraryEntry[]): string {
     .map((entry) => {
       const started = timestampToFuzzyDate(entry.startedAt);
       const finished = timestampToFuzzyDate(entry.completedAt);
+      const seriesTitle = entry.snapshot.title.romaji ?? entry.snapshot.title.english ?? '';
+      const malScore = entry.score === null ? 0 : Math.round(entry.score / 10);
       return [
         '  <anime>',
-        '    <series_animedb_id>' + (entry.malId ?? 0) + '</series_animedb_id>',
-        '    <series_title><![CDATA[' + (entry.snapshot.title.romaji ?? entry.snapshot.title.english ?? '') + ']]></series_title>',
-        '    <series_episodes>' + (entry.snapshot.totalEpisodes ?? 0) + '</series_episodes>',
-        '    <my_watched_episodes>' + entry.progress + '</my_watched_episodes>',
-        '    <my_start_date>' + malDate(started) + '</my_start_date>',
-        '    <my_finish_date>' + malDate(finished) + '</my_finish_date>',
-        '    <my_score>' + (entry.score === null ? 0 : Math.round(entry.score / 10)) + '</my_score>',
-        '    <my_status>' + MAL_STATUS[entry.status] + '</my_status>',
-        '    <my_times_watched>' + entry.rewatches + '</my_times_watched>',
-        '    <my_comments><![CDATA[' + entry.notes + ']]></my_comments>',
+        `    <series_animedb_id>${entry.malId ?? 0}</series_animedb_id>`,
+        `    <series_title><![CDATA[${seriesTitle}]]></series_title>`,
+        `    <series_episodes>${entry.snapshot.totalEpisodes ?? 0}</series_episodes>`,
+        `    <my_watched_episodes>${entry.progress}</my_watched_episodes>`,
+        `    <my_start_date>${malDate(started)}</my_start_date>`,
+        `    <my_finish_date>${malDate(finished)}</my_finish_date>`,
+        `    <my_score>${malScore}</my_score>`,
+        `    <my_status>${MAL_STATUS[entry.status]}</my_status>`,
+        `    <my_times_watched>${entry.rewatches}</my_times_watched>`,
+        `    <my_comments><![CDATA[${entry.notes}]]></my_comments>`,
         '    <update_on_import>1</update_on_import>',
         '  </anime>',
       ].join('\n');
@@ -78,7 +84,7 @@ export function buildMalXmlExport(entries: LibraryEntry[]): string {
     '<myanimelist>',
     '  <myinfo>',
     '    <user_export_type>1</user_export_type>',
-    '    <user_total_anime>' + entries.length + '</user_total_anime>',
+    `    <user_total_anime>${entries.length}</user_total_anime>`,
     '  </myinfo>',
     anime,
     '</myanimelist>',
@@ -89,7 +95,7 @@ export function buildMalXmlExport(entries: LibraryEntry[]): string {
 function malDate(date: { year: number; month: number; day: number } | null): string {
   if (!date) return '0000-00-00';
   const pad = (value: number): string => String(value).padStart(2, '0');
-  return date.year + '-' + pad(date.month) + '-' + pad(date.day);
+  return `${date.year}-${pad(date.month)}-${pad(date.day)}`;
 }
 
 /** Writes the export to a real file and hands it to the share sheet. */
@@ -247,7 +253,7 @@ export function parseMalXml(xml: string): ParsedMalEntry[] {
 }
 
 function tag(block: string, name: string): string {
-  const match = block.match(new RegExp('<' + name + '>([\\s\\S]*?)</' + name + '>'));
+  const match = block.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
   if (!match?.[1]) return '';
   return match[1].replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim();
 }
@@ -317,7 +323,7 @@ export async function importFromMalXml(xml: string): Promise<ImportResult & { un
       customListIds: existing?.customListIds ?? [],
       notify: existing?.notify ?? null,
       private: existing?.private ?? false,
-      snapshot: match ? toSnapshot(match) : { ...emptySnapshot(), title: emptyTitleSet() },
+      snapshot: toSnapshot(match),
     };
 
     store.restore(entry);
@@ -328,7 +334,10 @@ export async function importFromMalXml(xml: string): Promise<ImportResult & { un
   return result;
 }
 
-/** AniList exposes idMal_in on the Page query; batched 50 at a time. */
+/** AniList caps a Page at 50 rows, which sets the batch size here. */
+const MAL_LOOKUP_BATCH = 50;
+
+/** AniList exposes idMal_in on the Page query; batched to stay within the cap. */
 async function getMediaByIdMalBatch(malIds: number[]) {
   const { anilistRequest } = await import('@/api/anilist/client');
   const { MEDIA_LITE_FRAGMENT } = await import('@/api/anilist/queries');
@@ -337,8 +346,8 @@ async function getMediaByIdMalBatch(malIds: number[]) {
     '\nquery ByMal($ids: [Int], $perPage: Int!) { Page(page: 1, perPage: $perPage) { media(idMal_in: $ids) { ...MediaLite } } }';
 
   const results: Awaited<ReturnType<typeof getMediaByIds>> = [];
-  for (let index = 0; index < malIds.length; index += 50) {
-    const chunk = malIds.slice(index, index + 50);
+  for (let index = 0; index < malIds.length; index += MAL_LOOKUP_BATCH) {
+    const chunk = malIds.slice(index, index + MAL_LOOKUP_BATCH);
     const data = await anilistRequest<{ Page: { media: typeof results | null } | null }>(query, {
       ids: chunk,
       perPage: chunk.length,
@@ -346,17 +355,4 @@ async function getMediaByIdMalBatch(malIds: number[]) {
     results.push(...(data.Page?.media ?? []));
   }
   return results;
-}
-
-function emptySnapshot() {
-  return {
-    title: emptyTitleSet(),
-    coverImage: null,
-    bannerImage: null,
-    totalEpisodes: null,
-    format: null,
-    airingStatus: null,
-    genres: [] as string[],
-    averageScore: null,
-  };
 }

@@ -63,7 +63,7 @@ export default function DataSettingsScreen() {
             backgroundColor: colors.surfaceContainerLow,
           }}
         >
-          <Text variant="bodyMd">{entries.length + ' titles in your library'}</Text>
+          <Text variant="bodyMd">{`${entries.length} titles in your library`}</Text>
           <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginTop: 4 }}>
             Exports include progress, scores, notes, rewatches and dates.
           </Text>
@@ -108,7 +108,11 @@ export default function DataSettingsScreen() {
           <Row
             icon="cloud-download-outline"
             label="Import from AniList"
-            hint={linked.anilist ? 'Linked as ' + linked.anilist.userName : 'Link your AniList account first'}
+            hint={
+              linked.anilist
+                ? `Linked as ${linked.anilist.userName}`
+                : 'Link your AniList account first'
+            }
             trailing={spinner('anilist')}
             onPress={() =>
               void run('anilist', async () => {
@@ -118,7 +122,7 @@ export default function DataSettingsScreen() {
                 }
                 const result = await importFromAniList();
                 toast.success(
-                  result.added + ' added, ' + result.updated + ' updated, ' + result.skipped + ' skipped',
+                  `${result.added} added, ${result.updated} updated, ${result.skipped} skipped`,
                 );
               })
             }
@@ -135,7 +139,9 @@ export default function DataSettingsScreen() {
                   return;
                 }
                 const result = await syncToAniList(entries);
-                toast.success(result.pushed + ' synced' + (result.failed ? ', ' + result.failed + ' failed' : ''));
+                toast.success(
+                  `${result.pushed} synced${result.failed ? `, ${result.failed} failed` : ''}`,
+                );
               })
             }
           />
@@ -156,10 +162,10 @@ export default function DataSettingsScreen() {
                 const xml = file.textSync();
                 const result = await importFromMalXml(xml);
 
-                toast.success(result.added + ' added, ' + result.updated + ' updated');
+                toast.success(`${result.added} added, ${result.updated} updated`);
                 if (result.unresolved.length > 0) {
                   toast.show(
-                    result.unresolved.length + ' titles had no AniList match and were skipped',
+                    `${result.unresolved.length} titles had no AniList match and were skipped`,
                     'warning',
                   );
                 }

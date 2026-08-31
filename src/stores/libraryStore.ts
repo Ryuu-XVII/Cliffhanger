@@ -4,7 +4,9 @@ import type { AniListMedia, AniListMediaLite } from '@/api/anilist/types';
 import { scheduleAutoSync } from '@/data/autoSync';
 import { localStore } from '@/data/localStore';
 import {
+  ACTIVE_STATUSES,
   emptyEntry,
+  isActiveEntry,
   type CustomList,
   type LibraryEntry,
   type ListStatus,
@@ -17,7 +19,7 @@ import { mediaTypeOf, toSnapshot } from '@/data/transforms';
 /**
  * The library store is the app-wide source of truth for user data. Every
  * mutation is applied locally and synchronously first (F-05 demands the +1 be
- * instant), then persisted to local storage, then queued for Firestore.
+ * instant), then persisted to local storage, then queued for the backend.
  * The network is never on the critical path of an interaction.
  */
 
@@ -91,17 +93,21 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
     scheduleAutoSync(() => void get().sync());
   }
 
-  function queueEntry(entry: LibraryEntry, origin: SyncOrigin = 'local'): void {
+  function queueOp(op: Omit<SyncOp, 'queuedAt' | 'attempts' | 'lastError'>): void {
     const uid = get().uid;
     if (!uid) return;
-    enqueue(uid, {
-      key: 'entry:' + entry.anilistId,
+    enqueue(uid, op);
+    set({ pending: pendingCount(uid) });
+    autoSync();
+  }
+
+  function queueEntry(entry: LibraryEntry, origin: SyncOrigin = 'local'): void {
+    queueOp({
+      key: `entry:${entry.anilistId}`,
       type: 'entry.upsert',
       payload: entry,
       origin,
     });
-    set({ pending: pendingCount(uid) });
-    autoSync();
   }
 
   function commit(entry: LibraryEntry, origin: SyncOrigin = 'local'): LibraryEntry {
@@ -182,7 +188,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
         malId: media.idMal ?? null,
         mediaType: type,
         status,
-        startedAt: status === 'WATCHING' || status === 'REWATCHING' ? Date.now() : null,
+        startedAt: ACTIVE_STATUSES.has(status) ? Date.now() : null,
       };
       return commit(entry);
     },
@@ -196,12 +202,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       set({ entries });
       persist(entries);
 
-      const uid = get().uid;
-      if (uid) {
-        enqueue(uid, { key: 'entry:' + anilistId, type: 'entry.delete', payload: anilistId });
-        set({ pending: pendingCount(uid) });
-        autoSync();
-      }
+      queueOp({ key: `entry:${anilistId}`, type: 'entry.delete', payload: anilistId });
       return entry;
     },
 
@@ -248,7 +249,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
 
     createList: (name) => {
       const list: CustomList = {
-        id: 'list-' + Date.now().toString(36),
+        id: `list-${Date.now().toString(36)}`,
         name: name.trim(),
         order: get().lists.length,
         createdAt: Date.now(),
@@ -257,12 +258,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       set({ lists });
       persistLists(lists);
 
-      const uid = get().uid;
-      if (uid) {
-        enqueue(uid, { key: 'list:' + list.id, type: 'list.upsert', payload: list });
-        set({ pending: pendingCount(uid) });
-        autoSync();
-      }
+      queueOp({ key: `list:${list.id}`, type: 'list.upsert', payload: list });
       return list;
     },
 
@@ -273,13 +269,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       set({ lists });
       persistLists(lists);
 
-      const uid = get().uid;
       const updated = lists.find((list) => list.id === id);
-      if (uid && updated) {
-        enqueue(uid, { key: 'list:' + id, type: 'list.upsert', payload: updated });
-        set({ pending: pendingCount(uid) });
-        autoSync();
-      }
+      if (updated) queueOp({ key: `list:${id}`, type: 'list.upsert', payload: updated });
     },
 
     deleteList: (id) => {
@@ -306,12 +297,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
         persist(entries);
       }
 
-      const uid = get().uid;
-      if (uid) {
-        enqueue(uid, { key: 'list:' + id, type: 'list.delete', payload: id });
-        set({ pending: pendingCount(uid) });
-        autoSync();
-      }
+      queueOp({ key: `list:${id}`, type: 'list.delete', payload: id });
     },
 
     toggleListMembership: (anilistId, listId) => {
@@ -361,12 +347,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       }
       updated.status = 'COMPLETED';
       updated.completedAt = Date.now();
-    } else if (
-      entry.status !== 'WATCHING' &&
-      entry.status !== 'REWATCHING' &&
-      clamped > 0 &&
-      clamped < (total ?? Infinity)
-    ) {
+    } else if (!isActiveEntry(entry) && clamped > 0 && clamped < (total ?? Infinity)) {
       // Logging an episode on a planned or dropped title resumes it.
       updated.status = entry.status === 'COMPLETED' ? 'REWATCHING' : 'WATCHING';
       if (updated.status === 'REWATCHING') updated.completedAt = entry.completedAt;
@@ -384,7 +365,12 @@ export function totalUnits(entry: LibraryEntry): number | null {
 
 export function unitNoun(entry: LibraryEntry, plural = false): string {
   const noun = entry.mediaType === 'MANGA' ? 'chapter' : 'episode';
-  return plural ? noun + 's' : noun;
+  return plural ? `${noun}s` : noun;
+}
+
+export function unitNounCapitalised(entry: LibraryEntry, plural = false): string {
+  const noun = unitNoun(entry, plural);
+  return noun.charAt(0).toUpperCase() + noun.slice(1);
 }
 
 /* ----------------------------- selectors ----------------------------- */

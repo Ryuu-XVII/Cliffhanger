@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 
 import { getAiringSchedule } from '@/api/anilist';
 import { readJson, writeJson } from '@/api/kv';
+import { isActiveEntry } from '@/data/models';
 import { resolveTitle } from '@/data/titles';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -30,6 +31,9 @@ import { supabase } from '@/data/supabase';
 
 const SCHEDULED_KEY = 'notify:scheduled';
 const TOKEN_KEY = 'notify:push-token';
+const SCHEDULE_WINDOW_SECONDS = 7 * 24 * 3600;
+/** A week of airings never fills this many pages; the cap is a runaway guard. */
+const MAX_SCHEDULE_PAGES = 10;
 
 interface ScheduledRecord {
   /** idempotency key -> expo notification id */
@@ -111,7 +115,7 @@ export async function registerPushToken(): Promise<string | null> {
 }
 
 function idempotencyKey(anilistId: number, episode: number): string {
-  return anilistId + ':' + episode;
+  return `${anilistId}:${episode}`;
 }
 
 /**
@@ -130,7 +134,7 @@ export async function syncAiringNotifications(options: { requestPermission?: boo
 
   const entries = Object.values(useLibraryStore.getState().entries).filter((entry) => {
     if (entry.mediaType !== 'ANIME') return false;
-    if (entry.status !== 'WATCHING' && entry.status !== 'REWATCHING') return false;
+    if (!isActiveEntry(entry)) return false;
     // Per-title override wins; otherwise fall back to the global default.
     return entry.notify ?? settings.notifyOnAiringDefault;
   });
@@ -142,15 +146,13 @@ export async function syncAiringNotifications(options: { requestPermission?: boo
 
   const watched = new Map(entries.map((entry) => [entry.anilistId, entry]));
   const from = Math.floor(Date.now() / 1000);
-  const to = from + 7 * 24 * 3600;
+  const to = from + SCHEDULE_WINDOW_SECONDS;
 
   const scheduleItems = [] as Awaited<ReturnType<typeof getAiringSchedule>>['items'];
-  let schedulePage = 1;
-  while (schedulePage <= 10) {
+  for (let schedulePage = 1; schedulePage <= MAX_SCHEDULE_PAGES; schedulePage += 1) {
     const page = await getAiringSchedule(from, to, schedulePage);
     scheduleItems.push(...page.items);
     if (!page.hasNextPage) break;
-    schedulePage += 1;
   }
   const existing = readJson<ScheduledRecord>(SCHEDULED_KEY) ?? {};
   const next: ScheduledRecord = {};
@@ -182,8 +184,8 @@ export async function syncAiringNotifications(options: { requestPermission?: boo
     const title = resolveTitle(entry.snapshot.title, settings.titleLanguage);
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: title,
-        body: 'Episode ' + item.episode + ' is out.',
+        title,
+        body: `Episode ${item.episode} is out.`,
         sound: 'default',
         data: { anilistId: media.id, episode: item.episode },
         ...(Platform.OS === 'android' ? { channelId: 'airing' } : null),
@@ -231,8 +233,8 @@ const MIN_INTERVAL_MS = 60 * 60 * 1000;
 function watchSignature(): string {
   const settings = useSettingsStore.getState().settings;
   const ids = Object.values(useLibraryStore.getState().entries)
-    .filter((entry) => entry.status === 'WATCHING' || entry.status === 'REWATCHING')
-    .map((entry) => entry.anilistId + ':' + String(entry.notify ?? 'default'))
+    .filter(isActiveEntry)
+    .map((entry) => `${entry.anilistId}:${entry.notify ?? 'default'}`)
     .sort()
     .join(',');
 
@@ -241,7 +243,7 @@ function watchSignature(): string {
     settings.notificationsEnabled ? 'on' : 'off',
     settings.notifyOnAiringDefault ? 'default-on' : 'default-off',
     settings.titleLanguage,
-    settings.quietHours ? settings.quietHours.start + '-' + settings.quietHours.end : 'no-quiet',
+    settings.quietHours ? `${settings.quietHours.start}-${settings.quietHours.end}` : 'no-quiet',
   ].join('|');
 }
 

@@ -65,10 +65,8 @@ export function LibraryCard({
       style={[{ width }, style ?? {}]}
       radiusFrom={radii.md}
       radiusTo={radii.lg}
-      accessibilityLabel={
-        title + ', ' + noun + ' ' + entry.progress + (total ? ' of ' + total : '')
-      }
-      accessibilityHint={'Opens details for ' + title}
+      accessibilityLabel={`${title}, ${noun} ${entry.progress}${total ? ` of ${total}` : ''}`}
+      accessibilityHint={`Opens details for ${title}`}
     >
       <View ref={coverRef} collapsable={false} style={{ width, height }}>
         <Cover
@@ -99,7 +97,7 @@ export function LibraryCard({
             colour={STATUS_COLOURS[entry.status]}
             style={{ marginLeft: spacing.xs + 2 }}
           >
-            {(entry.mediaType === 'MANGA' ? 'Ch ' : 'Ep ') + entry.progress}
+            {`${entry.mediaType === 'MANGA' ? 'Ch' : 'Ep'} ${entry.progress}`}
           </Text>
         </View>
 
@@ -109,7 +107,7 @@ export function LibraryCard({
             disabled={atEnd}
             celebrate={!atEnd}
             onIncrement={() => logEpisode(entry.anilistId)}
-            accessibilityLabel={'Log one ' + noun + ' of ' + title}
+            accessibilityLabel={`Log one ${noun} of ${title}`}
             style={{ position: 'absolute', right: spacing.sm, bottom: spacing.sm + 6 }}
           />
         ) : null}
@@ -121,9 +119,7 @@ export function LibraryCard({
             tint={colors.primary}
             trackColour="rgba(0,0,0,0.55)"
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
-            accessibilityLabel={
-              Math.round((entry.progress / total) * 100) + ' percent watched'
-            }
+            accessibilityLabel={`${Math.round((entry.progress / total) * 100)} percent watched`}
           />
         ) : null}
       </View>

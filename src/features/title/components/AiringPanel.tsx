@@ -41,8 +41,8 @@ export function AiringPanel({
         padding: spacing.md,
         borderRadius: radii.md,
         borderWidth: 1,
-        borderColor: delay ? colors.onHoldYellow + '55' : hairline,
-        backgroundColor: delay ? colors.onHoldYellow + '14' : 'transparent',
+        borderColor: delay ? `${colors.onHoldYellow}55` : hairline,
+        backgroundColor: delay ? `${colors.onHoldYellow}14` : 'transparent',
       }}
     >
       {delay ? (
@@ -66,11 +66,9 @@ export function AiringPanel({
         >
           <Ionicons name="time-outline" size={16} color={colors.tertiary} />
           <Text variant="bodyMd" colour="onSurfaceVariant" style={{ marginLeft: spacing.sm, flex: 1 }}>
-            {'Episode ' +
-              nextAiring.episode +
-              ' in ' +
-              formatCountdown(nextAiring.timeUntilAiring) +
-              (delay ? ' (as scheduled)' : '')}
+            {`Episode ${nextAiring.episode} in ${formatCountdown(nextAiring.timeUntilAiring)}${
+              delay ? ' (as scheduled)' : ''
+            }`}
           </Text>
         </View>
       ) : null}
@@ -85,14 +83,14 @@ export function AiringPanel({
         >
           <Ionicons name="language-outline" size={16} color={colors.onSurfaceVariant} />
           <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginLeft: spacing.sm, flex: 1 }}>
-            {'Subs in ' + formatCountdown(Math.floor((subAt - Date.now()) / 1000))}
+            {`Subs in ${formatCountdown(Math.floor((subAt - Date.now()) / 1000))}`}
           </Text>
         </View>
       ) : null}
 
       {info?.episodesAired && info.totalEpisodes ? (
         <Text variant="labelSm" colour={colors.outline} style={{ marginTop: spacing.sm }}>
-          {info.episodesAired + ' of ' + info.totalEpisodes + ' episodes aired'}
+          {`${info.episodesAired} of ${info.totalEpisodes} episodes aired`}
         </Text>
       ) : null}
     </View>

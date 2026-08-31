@@ -12,6 +12,7 @@ import {
   getMediaTags,
   getSeason,
   getStudioMedia,
+  hasSearchFilters,
   searchMedia,
   searchStudios,
 } from './anilist';
@@ -30,7 +31,11 @@ const STALE = {
   title: 24 * 60 * 60 * 1000,
   airing: 60 * 60 * 1000,
   search: 5 * 60 * 1000,
+  /** Genre and tag vocabularies - AniList adds to these a few times a year. */
+  reference: 30 * 24 * 60 * 60 * 1000,
 };
+
+const SECONDS_PER_HOUR = 3600;
 
 /** Do not retry a request the server already told us not to repeat. */
 function retryPolicy(failureCount: number, error: unknown): boolean {
@@ -80,30 +85,6 @@ export interface SearchOptions {
   countryOfOrigin?: string;
   sort?: string[];
   type?: 'ANIME' | 'MANGA';
-}
-
-function hasSearchFilters(options: SearchOptions): boolean {
-  const lists = [
-    options.format,
-    options.status,
-    options.genre,
-    options.tag,
-    options.source,
-    options.excludeGenre,
-    options.excludeTag,
-  ];
-  if (lists.some((list) => list && list.length > 0)) return true;
-  return Boolean(
-    options.season ||
-      options.seasonYear ||
-      options.yearFrom ||
-      options.yearTo ||
-      options.minScore ||
-      options.minEpisodes ||
-      options.maxEpisodes ||
-      options.maxDuration ||
-      options.countryOfOrigin,
-  );
 }
 
 /** Infinite-scroll search used by the dedicated results screen. */
@@ -250,7 +231,7 @@ export function useGenres() {
   return useQuery({
     queryKey: ['genres'],
     queryFn: getGenres,
-    staleTime: 30 * 24 * 60 * 60 * 1000,
+    staleTime: STALE.reference,
     retry: retryPolicy,
   });
 }
@@ -260,7 +241,7 @@ export function useMediaTags() {
   return useQuery({
     queryKey: ['media-tags', includeAdult],
     queryFn: () => getMediaTags(includeAdult),
-    staleTime: 30 * 24 * 60 * 60 * 1000,
+    staleTime: STALE.reference,
     retry: retryPolicy,
   });
 }
@@ -271,9 +252,9 @@ export function useMediaTags() {
  */
 export function useAiringWindow(hours = 168) {
   const from = Math.floor(Date.now() / 1000);
-  const to = from + hours * 3600;
+  const to = from + hours * SECONDS_PER_HOUR;
   // Bucket the window so the key is stable within the hour and the cache holds.
-  const bucket = Math.floor(from / 3600);
+  const bucket = Math.floor(from / SECONDS_PER_HOUR);
 
   return useQuery({
     queryKey: ['airing', bucket, hours],

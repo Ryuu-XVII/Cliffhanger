@@ -24,6 +24,10 @@ interface ToastState {
   clear: () => void;
 }
 
+/** Undo needs longer than a plain acknowledgement to stay reachable. */
+const ACTION_DURATION_MS = 6000;
+const DEFAULT_DURATION_MS = 2600;
+
 let counter = 0;
 
 export const useToastStore = create<ToastState>((set, get) => ({
@@ -31,11 +35,15 @@ export const useToastStore = create<ToastState>((set, get) => ({
 
   show: ({ message, tone = 'neutral', action, durationMs }) => {
     counter += 1;
-    const id = 'toast-' + counter;
-    // Undo needs longer than an acknowledgement to be reachable.
-    const duration = durationMs ?? (action ? 6000 : 2600);
+    const id = `toast-${counter}`;
+    const duration = durationMs ?? (action ? ACTION_DURATION_MS : DEFAULT_DURATION_MS);
 
-    set({ toasts: [...get().toasts.filter((t) => t.message !== message), { id, message, tone, action, durationMs: duration }] });
+    set({
+      toasts: [
+        ...get().toasts.filter((toast) => toast.message !== message),
+        { id, message, tone, action, durationMs: duration },
+      ],
+    });
 
     setTimeout(() => get().dismiss(id), duration);
     return id;

@@ -25,12 +25,19 @@ const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
  * quiet hours available so a 3am JST broadcast does not wake anyone up.
  */
 
-const QUIET_PRESETS: Array<{ label: string; value: { start: string; end: string } | null }> = [
+type QuietWindow = { start: string; end: string } | null;
+
+const QUIET_PRESETS: Array<{ label: string; value: QuietWindow }> = [
   { label: 'Off', value: null },
   { label: '22:00 - 07:00', value: { start: '22:00', end: '07:00' } },
   { label: '23:00 - 08:00', value: { start: '23:00', end: '08:00' } },
   { label: '00:00 - 06:00', value: { start: '00:00', end: '06:00' } },
 ];
+
+function isSameWindow(a: QuietWindow, b: QuietWindow): boolean {
+  if (a === null || b === null) return a === b;
+  return a.start === b.start && a.end === b.end;
+}
 
 export default function NotificationSettingsScreen() {
   const { colors } = useTheme();
@@ -41,12 +48,8 @@ export default function NotificationSettingsScreen() {
   const [queued, setQueued] = useState(scheduledCount());
   const [working, setWorking] = useState(false);
 
-  const matchesPreset = QUIET_PRESETS.some(
-    (preset) =>
-      (preset.value === null && settings.quietHours === null) ||
-      (preset.value !== null &&
-        settings.quietHours?.start === preset.value.start &&
-        settings.quietHours?.end === preset.value.end),
+  const matchesPreset = QUIET_PRESETS.some((preset) =>
+    isSameWindow(preset.value, settings.quietHours),
   );
   const [customOpen, setCustomOpen] = useState(!matchesPreset && settings.quietHours !== null);
   const [customStart, setCustomStart] = useState(settings.quietHours?.start ?? '');
@@ -70,7 +73,7 @@ export default function NotificationSettingsScreen() {
     try {
       const count = await syncAiringNotifications();
       setQueued(scheduledCount());
-      toast.success(count > 0 ? count + ' alerts scheduled' : 'Nothing to schedule right now');
+      toast.success(count > 0 ? `${count} alerts scheduled` : 'Nothing to schedule right now');
     } catch {
       toast.error('Could not reach the airing schedule. Try again when you are online.');
     } finally {
@@ -136,25 +139,17 @@ export default function NotificationSettingsScreen() {
 
         <Section title="Quiet hours" hint="Alerts inside this window are skipped, not delayed.">
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            {QUIET_PRESETS.map((preset) => {
-              const selected =
-                !customOpen &&
-                ((preset.value === null && settings.quietHours === null) ||
-                  (preset.value !== null &&
-                    settings.quietHours?.start === preset.value.start &&
-                    settings.quietHours?.end === preset.value.end));
-              return (
-                <Chip
-                  key={preset.label}
-                  label={preset.label}
-                  selected={selected}
-                  onPress={() => {
-                    setCustomOpen(false);
-                    update({ quietHours: preset.value });
-                  }}
-                />
-              );
-            })}
+            {QUIET_PRESETS.map((preset) => (
+              <Chip
+                key={preset.label}
+                label={preset.label}
+                selected={!customOpen && isSameWindow(preset.value, settings.quietHours)}
+                onPress={() => {
+                  setCustomOpen(false);
+                  update({ quietHours: preset.value });
+                }}
+              />
+            ))}
             <Chip
               label="Custom"
               selected={customOpen}
@@ -187,7 +182,7 @@ export default function NotificationSettingsScreen() {
           <Text variant="bodyMd" colour="onSurfaceVariant">
             {queued === 0
               ? 'No alerts queued.'
-              : queued + (queued === 1 ? ' alert queued' : ' alerts queued') + ' for the next seven days.'}
+              : `${queued} ${queued === 1 ? 'alert' : 'alerts'} queued for the next seven days.`}
           </Text>
           <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginTop: spacing.xs }}>
             Alerts are scheduled locally so they still fire offline. Push notifications cover
@@ -264,7 +259,7 @@ function TimeField({
       placeholderTextColor={colors.outline}
       keyboardType="numbers-and-punctuation"
       maxLength={5}
-      accessibilityLabel={label + ' time, 24-hour HH:MM'}
+      accessibilityLabel={`${label} time, 24-hour HH:MM`}
       style={{
         width: 76,
         height: 44,

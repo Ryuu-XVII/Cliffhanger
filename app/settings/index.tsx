@@ -107,7 +107,7 @@ export default function SettingsScreen() {
                 scaleTo={0.9}
                 rotateTo={0}
                 accessibilityRole="radio"
-                accessibilityLabel={id + ' accent'}
+                accessibilityLabel={`${id} accent`}
                 accessibilityState={{ selected: settings.accent === id }}
                 style={{
                   width: 44,

@@ -11,6 +11,9 @@ export const USER_AGENT = 'Cliffhanger/1.0 (anime tracker; contact: hello@cliffh
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_RETRIES = 2;
+/** Used when a 429 carries no usable Retry-After, and as its upper bound. */
+const RETRY_AFTER_FALLBACK_SECONDS = 60;
+const RETRY_AFTER_MAX_SECONDS = 300;
 
 let online = true;
 /** Wired to NetInfo at startup so we can fail fast instead of hanging. */
@@ -95,7 +98,7 @@ export async function request(url: string, options: RequestOptions = {}): Promis
 
       if (response.status >= 500) {
         if (attempt === retries) {
-          throw new ApiError('server', 'Upstream error ' + response.status, {
+          throw new ApiError('server', `Upstream error ${response.status}`, {
             status: response.status,
           });
         }
@@ -148,12 +151,12 @@ export function backoffDelay(attempt: number): number {
 }
 
 function parseRetryAfter(header: string | null): number {
-  if (!header) return 60;
+  if (!header) return RETRY_AFTER_FALLBACK_SECONDS;
   const seconds = Number(header);
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds, 300);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds, RETRY_AFTER_MAX_SECONDS);
   const date = Date.parse(header);
   if (!Number.isNaN(date)) {
-    return Math.min(Math.max(0, Math.ceil((date - Date.now()) / 1000)), 300);
+    return Math.min(Math.max(0, Math.ceil((date - Date.now()) / 1000)), RETRY_AFTER_MAX_SECONDS);
   }
-  return 60;
+  return RETRY_AFTER_FALLBACK_SECONDS;
 }

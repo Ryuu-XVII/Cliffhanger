@@ -44,8 +44,8 @@ export async function getMalStats(malId: number | null): Promise<MalStats | null
   if (!malId) return null;
 
   try {
-    return await withCache('jikan:anime:' + malId, TTL.title, async () => {
-      const payload = await requestJson<JikanAnimeResponse>(BASE + '/anime/' + malId, {
+    return await withCache(`jikan:anime:${malId}`, TTL.title, async () => {
+      const payload = await requestJson<JikanAnimeResponse>(`${BASE}/anime/${malId}`, {
         limiter: jikanLimiter,
         retries: 1,
       });

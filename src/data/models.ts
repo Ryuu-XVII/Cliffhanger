@@ -172,6 +172,13 @@ export const STATUS_ORDER: ListStatus[] = [
   'REWATCHING',
 ];
 
+/** Statuses that mean "currently being watched/read", including reruns. */
+export const ACTIVE_STATUSES: ReadonlySet<ListStatus> = new Set(['WATCHING', 'REWATCHING']);
+
+export function isActiveEntry(entry: Pick<LibraryEntry, 'status'>): boolean {
+  return ACTIVE_STATUSES.has(entry.status);
+}
+
 export function emptyEntry(anilistId: number, snapshot: EntrySnapshot): LibraryEntry {
   return {
     anilistId,

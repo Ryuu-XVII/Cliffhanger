@@ -36,6 +36,10 @@ import { Cover } from '@/ui/Cover';
  * every animated value is explicitly cancelled on unmount besides.
  */
 
+/** Comfortably longer than `spring.weighty` takes to settle at this distance. */
+const SPRING_SETTLE_MS = 420;
+const REDUCED_SETTLE_MS = 120;
+
 export interface HeroOrigin {
   anilistId: number;
   uri: string | null;
@@ -147,7 +151,7 @@ export function HeroCover({
         setSettled(true);
         clear();
       },
-      reduced ? 120 : 420,
+      reduced ? REDUCED_SETTLE_MS : SPRING_SETTLE_MS,
     );
 
     return () => {

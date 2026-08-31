@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -78,7 +78,10 @@ export default function AuthScreen() {
       if (key === 'email' && mode === 'signUp') {
         const { data } = await supabase.auth.getSession();
         if (!data.session) {
-          toast.show('Almost there - check ' + email.trim() + ' and tap the confirmation link to finish.', 'success');
+          toast.show(
+            `Almost there - check ${email.trim()} and tap the confirmation link to finish.`,
+            'success',
+          );
           setMode('signIn');
           return;
         }
@@ -298,7 +301,7 @@ function Field({
         />
         {secure ? (
           <Pressable
-            onPress={() => setRevealed((value) => !value)}
+            onPress={() => setRevealed((previous) => !previous)}
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
@@ -316,7 +319,7 @@ function Field({
   );
 }
 
-/** Firebase error codes are not user-facing copy. Translate them (§10). */
+/** Auth provider error codes are not user-facing copy. Translate them (§10). */
 function friendlyAuthError(error: unknown): string {
   const code = (error as { code?: string } | null)?.code ?? '';
   switch (code) {

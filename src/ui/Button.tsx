@@ -39,14 +39,14 @@ export function Button({
 }: ButtonProps) {
   const { colors } = useTheme();
 
-  const palette: Record<ButtonVariant, { bg: string; fg: string; border: string }> = {
+  const tones: Record<ButtonVariant, { bg: string; fg: string; border: string }> = {
     primary: { bg: colors.primary, fg: colors.onPrimary, border: 'transparent' },
     secondary: { bg: 'rgba(255,255,255,0.10)', fg: colors.onSurface, border: hairlineStrong },
     tertiary: { bg: 'transparent', fg: colors.primary, border: 'transparent' },
     danger: { bg: colors.errorContainer, fg: colors.onErrorContainer, border: 'transparent' },
   };
 
-  const tone = palette[variant];
+  const tone = tones[variant];
   const inactive = disabled || loading;
 
   return (

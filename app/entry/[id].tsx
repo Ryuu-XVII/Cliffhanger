@@ -8,7 +8,7 @@ import { STATUS_LABELS, STATUS_ORDER } from '@/data/models';
 import { resolveTitle } from '@/data/titles';
 import { ScorePicker } from '@/features/entry/ScorePicker';
 import { useProgressActions } from '@/features/progress/useProgressActions';
-import { totalUnits, unitNoun, useLibraryStore } from '@/stores/libraryStore';
+import { totalUnits, unitNoun, unitNounCapitalised, useLibraryStore } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { toast } from '@/stores/toastStore';
 import { hairline, radii, spacing } from '@/theme/tokens';
@@ -77,6 +77,7 @@ export default function EditEntryScreen() {
   const title = resolveTitle(entry.snapshot.title, settings.titleLanguage);
   const total = totalUnits(entry);
   const noun = unitNoun(entry, true);
+  const nounCapitalised = unitNounCapitalised(entry, true);
 
   return (
     <Screen>
@@ -109,13 +110,13 @@ export default function EditEntryScreen() {
           <EpisodeCounter
             progress={entry.progress}
             total={total}
-            unit={noun.charAt(0).toUpperCase() + noun.slice(1)}
+            unit={nounCapitalised}
             onIncrement={() => logEpisode(anilistId)}
             onDecrement={() => setEpisode(anilistId, entry.progress - 1)}
           />
           {total ? (
             <Button
-              label={'Mark all ' + total + ' ' + noun + ' watched'}
+              label={`Mark all ${total} ${noun} watched`}
               variant="tertiary"
               onPress={() => setEpisode(anilistId, total)}
             />
@@ -131,7 +132,7 @@ export default function EditEntryScreen() {
                 selected={entry.status === status}
                 onPress={() => {
                   setStatus(anilistId, status);
-                  toast.show('Moved to ' + STATUS_LABELS[status].toLowerCase(), 'success');
+                  toast.show(`Moved to ${STATUS_LABELS[status].toLowerCase()}`, 'success');
                 }}
               />
             ))}
@@ -225,7 +226,7 @@ export default function EditEntryScreen() {
             label="Notify me when an episode airs"
             hint={
               entry.notify === null
-                ? 'Following your default (' + (settings.notifyOnAiringDefault ? 'on' : 'off') + ')'
+                ? `Following your default (${settings.notifyOnAiringDefault ? 'on' : 'off'})`
                 : undefined
             }
             value={entry.notify ?? settings.notifyOnAiringDefault}

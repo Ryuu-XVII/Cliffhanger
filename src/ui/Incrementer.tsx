@@ -59,7 +59,7 @@ export function IncrementButton({
     () =>
       Array.from({ length: PARTICLE_COUNT }, (_, index) => {
         const angle = (index / PARTICLE_COUNT) * Math.PI * 2;
-        return { x: Math.cos(angle), y: Math.sin(angle), key: 'p' + index };
+        return { x: Math.cos(angle), y: Math.sin(angle), key: `p${index}` };
       }),
     [],
   );
@@ -214,6 +214,7 @@ export function EpisodeCounter({
 
   const atStart = progress <= 0;
   const atEnd = total !== null && progress >= total;
+  const singularUnit = unit.toLowerCase().replace(/s$/, '');
 
   return (
     <View style={styles.counter}>
@@ -221,7 +222,7 @@ export function EpisodeCounter({
         icon="remove"
         onPress={onDecrement}
         disabled={disabled || atStart}
-        label={'Remove one ' + unit.toLowerCase().replace(/s$/, '')}
+        label={`Remove one ${singularUnit}`}
       />
 
       <View style={{ alignItems: 'center', minWidth: 128 }}>
@@ -229,7 +230,7 @@ export function EpisodeCounter({
           <Text variant="displayLg" colour={colors.onSurface}>
             {progress}
             <Text variant="headlineSm" colour="onSurfaceVariant">
-              {total ? ' / ' + total : ''}
+              {total ? ` / ${total}` : ''}
             </Text>
           </Text>
         </Animated.View>
@@ -242,7 +243,7 @@ export function EpisodeCounter({
         icon="add"
         onPress={onIncrement}
         disabled={disabled || atEnd}
-        label={'Add one ' + unit.toLowerCase().replace(/s$/, '')}
+        label={`Add one ${singularUnit}`}
         primary
       />
     </View>
@@ -267,6 +268,12 @@ function StepButton({
   const reduced = useReducedMotion();
 
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  function resolveBackground(): string {
+    if (!primary) return 'rgba(255,255,255,0.06)';
+    if (disabled) return 'rgba(255,255,255,0.08)';
+    return colors.primary;
+  }
 
   const press = () => {
     if (disabled) return;
@@ -294,11 +301,7 @@ function StepButton({
           justifyContent: 'center',
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: hairlineStrong,
-          backgroundColor: primary
-            ? disabled
-              ? 'rgba(255,255,255,0.08)'
-              : colors.primary
-            : 'rgba(255,255,255,0.06)',
+          backgroundColor: resolveBackground(),
           opacity: disabled ? 0.45 : 1,
         }}
       >

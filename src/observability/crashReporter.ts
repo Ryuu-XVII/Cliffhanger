@@ -25,6 +25,7 @@ const QUEUE_KEY = 'crash:queue';
 const MAX_QUEUED = 25;
 /** Keep payloads small; a full RN stack can run to tens of kilobytes. */
 const MAX_STACK_CHARS = 4000;
+const MAX_MESSAGE_CHARS = 500;
 
 export interface CrashReport {
   id: string;
@@ -54,7 +55,7 @@ function writeQueue(reports: CrashReport[]): void {
 
 function truncate(stack: string | undefined | null): string | null {
   if (!stack) return null;
-  return stack.length > MAX_STACK_CHARS ? stack.slice(0, MAX_STACK_CHARS) + '\n[truncated]' : stack;
+  return stack.length > MAX_STACK_CHARS ? `${stack.slice(0, MAX_STACK_CHARS)}\n[truncated]` : stack;
 }
 
 /**
@@ -74,8 +75,8 @@ export function captureException(
       error instanceof Error ? error : new Error(typeof error === 'string' ? error : JSON.stringify(error));
 
     const report: CrashReport = {
-      id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
-      message: normalised.message.slice(0, 500),
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      message: normalised.message.slice(0, MAX_MESSAGE_CHARS),
       stack: truncate(normalised.stack),
       severity: options.severity ?? 'error',
       source: options.source ?? 'manual',

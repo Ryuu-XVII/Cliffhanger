@@ -34,6 +34,16 @@ export default function ProfileScreen() {
 
   const stats = useMemo(() => computeStats(Object.values(entries)), [entries]);
 
+  function syncStatusLabel(): string {
+    if (isAnonymous) {
+      return supabaseConfigured
+        ? 'Local library, not synced'
+        : 'Local library. Add Supabase config to sync.';
+    }
+    if (lastSyncedAt) return `Synced ${relativeTime(lastSyncedAt)}`;
+    return 'Not synced yet';
+  }
+
   return (
     <Screen>
       <ScreenHeader title="Profile" />
@@ -68,13 +78,7 @@ export default function ProfileScreen() {
                 {name}
               </Text>
               <Text variant="labelSm" colour="onSurfaceVariant">
-                {isAnonymous
-                  ? supabaseConfigured
-                    ? 'Local library, not synced'
-                    : 'Local library. Add Supabase config to sync.'
-                  : lastSyncedAt
-                    ? 'Synced ' + relativeTime(lastSyncedAt)
-                    : 'Not synced yet'}
+                {syncStatusLabel()}
               </Text>
             </View>
           </View>
@@ -90,7 +94,7 @@ export default function ProfileScreen() {
 
           {pending > 0 ? (
             <Text variant="labelSm" colour={colors.onHoldYellow} style={{ marginTop: spacing.sm }}>
-              {pending + (pending === 1 ? ' change' : ' changes') + ' waiting to sync'}
+              {`${pending} ${pending === 1 ? 'change' : 'changes'} waiting to sync`}
             </Text>
           ) : null}
         </View>
@@ -129,7 +133,7 @@ export default function ProfileScreen() {
           <Row
             icon="link-outline"
             label="AniList"
-            hint={linked.anilist ? 'Linked as ' + linked.anilist.userName : 'Not linked'}
+            hint={linked.anilist ? `Linked as ${linked.anilist.userName}` : 'Not linked'}
             onPress={() => router.push('/settings/account')}
           />
           <Row

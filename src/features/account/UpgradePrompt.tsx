@@ -46,7 +46,7 @@ export function UpgradePrompt() {
       </View>
 
       <Text variant="bodyMd" colour="onSurfaceVariant" style={{ marginTop: spacing.sm }}>
-        {entryCount + ' titles are stored on this device only. Create an account and they sync everywhere, with nothing lost.'}
+        {`${entryCount} titles are stored on this device only. Create an account and they sync everywhere, with nothing lost.`}
       </Text>
 
       <Button

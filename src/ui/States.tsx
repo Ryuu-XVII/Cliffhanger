@@ -14,6 +14,15 @@ import { Text } from './Text';
  * invitation to act, not an apology", so the copy here never says sorry.
  */
 
+function stateContainer(compact: boolean): ViewStyle {
+  return {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: compact ? spacing.lg : spacing.xl,
+    paddingHorizontal: spacing.lg,
+  };
+}
+
 export interface EmptyStateProps {
   icon?: keyof typeof Ionicons.glyphMap;
   title: string;
@@ -38,16 +47,8 @@ export function EmptyState({
   return (
     <View
       accessible
-      accessibilityLabel={title + '. ' + message}
-      style={[
-        {
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingVertical: compact ? spacing.lg : spacing.xl,
-          paddingHorizontal: spacing.lg,
-        },
-        style ?? {},
-      ]}
+      accessibilityLabel={`${title}. ${message}`}
+      style={[stateContainer(compact), style ?? {}]}
     >
       <View
         style={{
@@ -99,16 +100,8 @@ export function ErrorState({
   return (
     <View
       accessible
-      accessibilityLabel={described.title + '. ' + described.detail}
-      style={[
-        {
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingVertical: compact ? spacing.lg : spacing.xl,
-          paddingHorizontal: spacing.lg,
-        },
-        style ?? {},
-      ]}
+      accessibilityLabel={`${described.title}. ${described.detail}`}
+      style={[stateContainer(compact), style ?? {}]}
     >
       <Ionicons name="cloud-offline-outline" size={30} color={colors.error} />
       <Text variant="headlineSm" align="center" style={{ marginTop: spacing.md }}>

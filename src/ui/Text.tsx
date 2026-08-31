@@ -26,10 +26,7 @@ export function Text({
   ...rest
 }: TextProps) {
   const theme = useTheme();
-  const resolved =
-    typeof colour === 'string' && colour in theme.colors
-      ? theme.colors[colour as keyof Palette]
-      : (colour as string);
+  const resolved = colour in theme.colors ? theme.colors[colour as keyof Palette] : colour;
 
   return (
     <RNText

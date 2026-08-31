@@ -37,13 +37,24 @@ export function StatusDot({ status, size = 8 }: { status: ListStatus; size?: num
   );
 }
 
+/** Hex alpha suffixes for the pill's tonal border and fill. */
+const PILL_BORDER_ALPHA = '55';
+const PILL_FILL_ALPHA = '1F';
+
 export function StatusPill({ status, style }: { status: ListStatus; style?: ViewStyle }) {
   const colour = STATUS_COLOURS[status];
   return (
     <View
       accessible
-      accessibilityLabel={'Status: ' + STATUS_LABELS[status]}
-      style={[styles.pill, { borderColor: colour + '55', backgroundColor: colour + '1F' }, style ?? {}]}
+      accessibilityLabel={`Status: ${STATUS_LABELS[status]}`}
+      style={[
+        styles.pill,
+        {
+          borderColor: `${colour}${PILL_BORDER_ALPHA}`,
+          backgroundColor: `${colour}${PILL_FILL_ALPHA}`,
+        },
+        style ?? {},
+      ]}
     >
       <StatusDot status={status} />
       <Text variant="labelSm" colour={colour} uppercase style={{ marginLeft: spacing.xs + 2 }}>
@@ -66,7 +77,7 @@ export function ScoreBadge({
   return (
     <View
       accessible
-      accessibilityLabel={'Score ' + score}
+      accessibilityLabel={`Score ${score}`}
       style={[
         styles.score,
         {
@@ -120,13 +131,14 @@ export function ProgressBar({
 }: ProgressBarProps) {
   const { colors } = useTheme();
   const reduced = useReducedMotion();
-  const progress = useSharedValue(clamp(value));
+  const target = clamp(value);
+  const progress = useSharedValue(target);
 
   useEffect(() => {
     progress.value = reduced
-      ? withTiming(clamp(value), timing.reduced)
-      : withSpring(clamp(value), spring.snappy);
-  }, [value, reduced, progress]);
+      ? withTiming(target, timing.reduced)
+      : withSpring(target, spring.snappy);
+  }, [target, reduced, progress]);
 
   const fill = useAnimatedStyle(() => ({
     transform: [{ scaleX: progress.value }],
@@ -137,7 +149,7 @@ export function ProgressBar({
       accessible={accessibilityLabel !== undefined}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="progressbar"
-      accessibilityValue={{ now: Math.round(clamp(value) * 100), min: 0, max: 100 }}
+      accessibilityValue={{ now: Math.round(target * 100), min: 0, max: 100 }}
       style={[
         {
           height,

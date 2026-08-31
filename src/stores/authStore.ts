@@ -12,7 +12,7 @@ import { useSettingsStore } from './settingsStore';
 
 /**
  * Owns the session. The app never blocks on this: an unconfigured or offline
- * Firebase still yields a usable local uid so the library works (F-10, §12).
+ * Supabase still yields a usable local uid so the library works (F-10, §12).
  */
 
 const LOCAL_UID_KEY = 'auth:local-uid';
@@ -25,7 +25,7 @@ export const UPGRADE_PROMPT_THRESHOLD = 10;
 interface AuthState {
   ready: boolean;
   user: User | null;
-  /** Always set once ready: the Firebase uid, or a stable device-local id. */
+  /** Always set once ready: the Supabase uid, or a stable device-local id. */
   uid: string | null;
   isAnonymous: boolean;
   linked: LinkedAccounts;
@@ -41,7 +41,7 @@ interface AuthState {
 function localUid(): string {
   const existing = readJson<string>(LOCAL_UID_KEY);
   if (existing) return existing;
-  const generated = 'local-' + Math.random().toString(36).slice(2, 12);
+  const generated = `local-${Math.random().toString(36).slice(2, 12)}`;
   writeJson(LOCAL_UID_KEY, generated);
   return generated;
 }
@@ -86,12 +86,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const emptyLinked: LinkedAccounts = { anilist: null, mal: null };
         writeJson(LINKED_KEY, emptyLinked);
         set({ linked: emptyLinked });
-      }
 
-      // Signing into a *different* account: carry the local library across so a
-      // user never loses what they logged before creating an account (§5).
-      if (previousUid && previousUid !== uid && previousUid.startsWith('local-')) {
-        localStore.migrate(previousUid, uid, { overwrite: false });
+        // Signing into a real account from a guest session: carry the local
+        // library across so nothing logged before signup is lost (§5).
+        if (previousUid.startsWith('local-')) {
+          localStore.migrate(previousUid, uid, { overwrite: false });
+        }
       }
 
       adoptSession(uid);

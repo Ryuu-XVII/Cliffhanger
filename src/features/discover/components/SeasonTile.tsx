@@ -16,6 +16,9 @@ import { Text } from '@/ui/Text';
  * The landscape seasonal tile from the Discover mockup - a wide crop of the
  * banner with the format and airing status above the title.
  */
+/** The banner crop is a wide landscape rather than the 2:3 of a poster. */
+const BANNER_ASPECT = 0.62;
+
 export function SeasonTile({ media, width }: { media: AniListMediaLite; width: number }) {
   const router = useRouter();
   const { colors } = useTheme();
@@ -23,10 +26,11 @@ export function SeasonTile({ media, width }: { media: AniListMediaLite; width: n
 
   const title = resolveTitle(media.title, language);
   const releasing = media.status === 'RELEASING';
+  const bannerWidth = width - spacing.sm * 2;
 
   const open = useCallback(() => {
     router.push({ pathname: '/title/[id]', params: { id: String(media.id) } });
-  }, [router, media]);
+  }, [router, media.id]);
 
   return (
     <PressableScale
@@ -43,8 +47,8 @@ export function SeasonTile({ media, width }: { media: AniListMediaLite; width: n
       <View>
         <Cover
           uri={media.bannerImage ?? media.coverImage?.extraLarge ?? media.coverImage?.large ?? null}
-          width={width - spacing.sm * 2}
-          height={(width - spacing.sm * 2) * 0.62}
+          width={bannerWidth}
+          height={bannerWidth * BANNER_ASPECT}
           radius={radii.sm}
         />
       </View>
@@ -55,7 +59,7 @@ export function SeasonTile({ media, width }: { media: AniListMediaLite; width: n
         style={{ marginTop: spacing.sm }}
         numberOfLines={1}
       >
-        {formatLabel(media.format) + ' · ' + airingLabel(media.status)}
+        {`${formatLabel(media.format)} · ${airingLabel(media.status)}`}
       </Text>
 
       <Text variant="bodyMd" numberOfLines={1} style={{ marginTop: 2 }}>

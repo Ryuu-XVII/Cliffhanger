@@ -10,9 +10,9 @@ export function formatCountdown(secondsUntil: number): string {
   const hours = Math.floor((secondsUntil % 86_400) / 3_600);
   const minutes = Math.floor((secondsUntil % 3_600) / 60);
 
-  if (days > 0) return days + 'd ' + hours + 'h';
-  if (hours > 0) return hours + 'h ' + minutes + 'm';
-  return minutes + 'm';
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 export function airingDayLabel(airingAtSeconds: number, now = new Date()): string {
@@ -44,7 +44,7 @@ export function formatFuzzyDate(
   const month = new Date(date.year, date.month - 1, date.day ?? 1).toLocaleDateString(undefined, {
     month: 'short',
   });
-  return date.day ? month + ' ' + date.day + ', ' + date.year : month + ' ' + date.year;
+  return date.day ? `${month} ${date.day}, ${date.year}` : `${month} ${date.year}`;
 }
 
 export function fuzzyDateToTimestamp(
@@ -91,10 +91,10 @@ export function relativeTime(timestamp: number, now = Date.now()): string {
   const diff = Math.max(0, now - timestamp);
   const minutes = Math.floor(diff / 60_000);
   if (minutes < 1) return 'just now';
-  if (minutes < 60) return minutes + 'm ago';
+  if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return hours + 'h ago';
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  if (days < 30) return days + 'd ago';
+  if (days < 30) return `${days}d ago`;
   return formatDate(timestamp);
 }

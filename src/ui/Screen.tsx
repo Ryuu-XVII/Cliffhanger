@@ -14,10 +14,13 @@ export function Screen({ style, children, ...rest }: ViewProps) {
   );
 }
 
+/** Height of the floating tab dock plus the breathing room above it. */
+const TAB_DOCK_HEIGHT = 108;
+
 /** Bottom padding that clears the floating tab dock plus the home indicator. */
 export function useTabBarClearance(): number {
   const insets = useSafeAreaInsets();
-  return insets.bottom + 108;
+  return insets.bottom + TAB_DOCK_HEIGHT;
 }
 
 const styles = StyleSheet.create({

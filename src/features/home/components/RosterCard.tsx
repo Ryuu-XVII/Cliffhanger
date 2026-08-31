@@ -19,6 +19,9 @@ import { Text } from '@/ui/Text';
 
 export const ROSTER_CARD_WIDTH = 168;
 
+/** Slightly taller than the 2:3 poster so the scrim has room for the counter. */
+const ROSTER_CARD_ASPECT = 1.32;
+
 /**
  * A card in the Active Roster rail: cover, current episode, and the +1. Every
  * currently-watching title is reachable and loggable without leaving Home.
@@ -34,7 +37,7 @@ export function RosterCard({ entry }: { entry: LibraryEntry }) {
   const total = totalUnits(entry);
   const noun = unitNoun(entry);
   const atEnd = total !== null && entry.progress >= total;
-  const height = ROSTER_CARD_WIDTH * 1.32;
+  const height = ROSTER_CARD_WIDTH * ROSTER_CARD_ASPECT;
 
   const open = useCallback(async () => {
     await captureHero(coverRef.current, entry.anilistId, entry.snapshot.coverImage);
@@ -46,7 +49,7 @@ export function RosterCard({ entry }: { entry: LibraryEntry }) {
       onPress={open}
       radiusFrom={radii.md}
       radiusTo={radii.lg}
-      accessibilityLabel={title + ', ' + noun + ' ' + entry.progress + (total ? ' of ' + total : '')}
+      accessibilityLabel={`${title}, ${noun} ${entry.progress}${total ? ` of ${total}` : ''}`}
       style={{ width: ROSTER_CARD_WIDTH }}
     >
       <View ref={coverRef} collapsable={false} style={{ width: ROSTER_CARD_WIDTH, height }}>
@@ -71,10 +74,10 @@ export function RosterCard({ entry }: { entry: LibraryEntry }) {
         >
           <View>
             <Text variant="bodyMd">
-              {(entry.mediaType === 'MANGA' ? 'Ch ' : 'Ep ') + entry.progress}
+              {`${entry.mediaType === 'MANGA' ? 'Ch' : 'Ep'} ${entry.progress}`}
             </Text>
             <Text variant="labelSm" colour="onSurfaceVariant">
-              {total ? 'of ' + total : 'ongoing'}
+              {total ? `of ${total}` : 'ongoing'}
             </Text>
           </View>
 
@@ -83,7 +86,7 @@ export function RosterCard({ entry }: { entry: LibraryEntry }) {
             disabled={atEnd}
             celebrate={!atEnd}
             onIncrement={() => logEpisode(entry.anilistId)}
-            accessibilityLabel={'Log one ' + noun + ' of ' + title}
+            accessibilityLabel={`Log one ${noun} of ${title}`}
           />
         </View>
 

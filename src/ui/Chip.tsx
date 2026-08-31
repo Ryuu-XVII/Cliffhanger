@@ -6,6 +6,13 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { PressableScale } from './PressableScale';
 import { Text } from './Text';
 
+function chipPadding(compact: boolean) {
+  return {
+    paddingVertical: compact ? spacing.xs : spacing.sm,
+    paddingHorizontal: compact ? spacing.sm + 2 : spacing.md,
+  };
+}
+
 export interface ChipProps {
   label: string;
   onPress?: () => void;
@@ -32,14 +39,16 @@ export function Chip({
 }: ChipProps) {
   const { colors } = useTheme();
 
+  function resolveForeground(): string {
+    if (!selected) return tint ?? colors.onSurfaceVariant;
+    if (tint) return colors.onSurface;
+    return colors.onPrimaryContainer;
+  }
+
   const background = selected
     ? (tint ?? colors.primaryContainer)
     : 'rgba(255,255,255,0.06)';
-  const foreground = selected
-    ? tint
-      ? colors.onSurface
-      : colors.onPrimaryContainer
-    : (tint ?? colors.onSurfaceVariant);
+  const foreground = resolveForeground();
 
   const body = (
     <View
@@ -48,8 +57,7 @@ export function Chip({
         {
           backgroundColor: background,
           borderColor: selected ? 'transparent' : hairline,
-          paddingVertical: compact ? spacing.xs : spacing.sm,
-          paddingHorizontal: compact ? spacing.sm + 2 : spacing.md,
+          ...chipPadding(compact),
         },
         style ?? {},
       ]}
@@ -108,18 +116,29 @@ export function TriChip({
 }) {
   const { colors } = useTheme();
 
-  const background =
-    state === 'included'
-      ? colors.primaryContainer
-      : state === 'excluded'
-        ? colors.errorContainer
-        : 'rgba(255,255,255,0.06)';
-  const foreground =
-    state === 'included'
-      ? colors.onPrimaryContainer
-      : state === 'excluded'
-        ? colors.onErrorContainer
-        : colors.onSurfaceVariant;
+  const backgrounds: Record<TriChipState, string> = {
+    neutral: 'rgba(255,255,255,0.06)',
+    included: colors.primaryContainer,
+    excluded: colors.errorContainer,
+  };
+  const foregrounds: Record<TriChipState, string> = {
+    neutral: colors.onSurfaceVariant,
+    included: colors.onPrimaryContainer,
+    excluded: colors.onErrorContainer,
+  };
+  const stateSuffixes: Record<TriChipState, string> = {
+    neutral: '',
+    included: ', included',
+    excluded: ', excluded',
+  };
+  const hints: Record<TriChipState, string> = {
+    neutral: 'Tap to include',
+    included: 'Tap to exclude',
+    excluded: 'Tap to clear',
+  };
+
+  const background = backgrounds[state];
+  const foreground = foregrounds[state];
 
   return (
     <PressableScale
@@ -127,17 +146,8 @@ export function TriChip({
       scaleTo={0.94}
       rotateTo={0}
       accessibilityRole="button"
-      accessibilityLabel={
-        label +
-        (state === 'included' ? ', included' : state === 'excluded' ? ', excluded' : '')
-      }
-      accessibilityHint={
-        state === 'neutral'
-          ? 'Tap to include'
-          : state === 'included'
-            ? 'Tap to exclude'
-            : 'Tap to clear'
-      }
+      accessibilityLabel={`${label}${stateSuffixes[state]}`}
+      accessibilityHint={hints[state]}
       accessibilityState={{ selected: state !== 'neutral' }}
       style={{ borderRadius: radii.full }}
     >
@@ -147,8 +157,7 @@ export function TriChip({
           {
             backgroundColor: background,
             borderColor: state === 'neutral' ? hairline : 'transparent',
-            paddingVertical: compact ? spacing.xs : spacing.sm,
-            paddingHorizontal: compact ? spacing.sm + 2 : spacing.md,
+            ...chipPadding(compact),
             flexDirection: 'row',
             alignItems: 'center',
           },

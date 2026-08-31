@@ -3,8 +3,7 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
 
-import { setAniListToken } from '@/api/anilist';
-import { getViewer } from '@/api/anilist';
+import { getViewer, setAniListToken } from '@/api/anilist';
 import {
   clearAniListToken,
   deleteAccount,
@@ -33,8 +32,8 @@ import { Text } from '@/ui/Text';
 
 /**
  * §5 account management, including the self-service deletion that both stores
- * and POPIA/GDPR require. Deletion removes the Firestore documents first, then
- * the auth record - the reverse order would orphan the data.
+ * and POPIA/GDPR require. Deletion removes the stored user data first, then the
+ * auth record - the reverse order would orphan the data.
  */
 export default function AccountSettingsScreen() {
   const router = useRouter();
@@ -63,7 +62,7 @@ export default function AccountSettingsScreen() {
       setAniListToken(token);
       const viewer = await getViewer();
       setLinked({ anilist: { userId: viewer.id, userName: viewer.name, linkedAt: Date.now() } });
-      toast.success('Linked as ' + viewer.name);
+      toast.success(`Linked as ${viewer.name}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Linking failed');
     } finally {
@@ -123,6 +122,20 @@ export default function AccountSettingsScreen() {
     }
   };
 
+  function storageLabel(): string {
+    if (!supabaseConfigured) return 'Supabase is not configured, so everything stays on this device.';
+    if (isAnonymous) return 'Your library lives on this device only.';
+    return 'Your library syncs across your devices.';
+  }
+
+  function anilistHint(): string {
+    if (linked.anilist) {
+      return `Linked as ${linked.anilist.userName}. Your edits sync to AniList automatically.`;
+    }
+    if (isAniListConfigured()) return 'Two-way sync with your real AniList list';
+    return 'Not configured in this build';
+  }
+
   return (
     <Screen>
       <ScreenHeader title="Account" showBack />
@@ -140,11 +153,7 @@ export default function AccountSettingsScreen() {
             {isAnonymous ? 'Signed in as a guest' : (user?.email ?? user?.user_metadata?.display_name ?? 'Signed in')}
           </Text>
           <Text variant="labelSm" colour="onSurfaceVariant" style={{ marginTop: 4 }}>
-            {supabaseConfigured
-              ? isAnonymous
-                ? 'Your library lives on this device only.'
-                : 'Your library syncs across your devices.'
-              : 'Supabase is not configured, so everything stays on this device.'}
+            {storageLabel()}
           </Text>
 
           {isAnonymous ? (
@@ -233,7 +242,7 @@ export default function AccountSettingsScreen() {
                 submitLabel="Send confirmation link"
                 onSubmit={async (value) => {
                   await updateEmail(value.trim());
-                  toast.success('Check ' + value.trim() + ' to confirm the change');
+                  toast.success(`Check ${value.trim()} to confirm the change`);
                   setExpanded(null);
                 }}
               />
@@ -245,13 +254,7 @@ export default function AccountSettingsScreen() {
           <Row
             icon="link-outline"
             label="AniList"
-            hint={
-              linked.anilist
-                ? 'Linked as ' + linked.anilist.userName + '. Your edits sync to AniList automatically.'
-                : isAniListConfigured()
-                  ? 'Two-way sync with your real AniList list'
-                  : 'Not configured in this build'
-            }
+            hint={anilistHint()}
             onPress={linked.anilist ? () => void unlink() : () => void link()}
           />
           <Row
@@ -372,7 +375,7 @@ function CredentialForm({
         />
         {secure ? (
           <Pressable
-            onPress={() => setRevealed((v) => !v)}
+            onPress={() => setRevealed((previous) => !previous)}
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel={revealed ? 'Hide password' : 'Show password'}

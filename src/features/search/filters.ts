@@ -169,8 +169,10 @@ export interface SortOption {
   requiresQuery?: boolean;
 }
 
+const BEST_MATCH_SORT: SortOption = { value: DEFAULT_SORT, label: 'Best match', requiresQuery: true };
+
 export const SORTS: SortOption[] = [
-  { value: DEFAULT_SORT, label: 'Best match', requiresQuery: true },
+  BEST_MATCH_SORT,
   { value: ['POPULARITY_DESC'], label: 'Popularity', directional: true },
   { value: ['SCORE_DESC'], label: 'Score', directional: true },
   { value: ['START_DATE_DESC'], label: 'Release date', directional: true },
@@ -184,7 +186,7 @@ export const SORTS: SortOption[] = [
  * so flipping direction means rewriting the enum: SCORE_DESC <-> SCORE.
  */
 export function flipSortDirection(sort: string[]): string[] {
-  return sort.map((key) => (key.endsWith('_DESC') ? key.slice(0, -5) : key + '_DESC'));
+  return sort.map((key) => (key.endsWith('_DESC') ? key.slice(0, -'_DESC'.length) : `${key}_DESC`));
 }
 
 export function isDescending(sort: string[]): boolean {
@@ -217,7 +219,7 @@ export function countActiveFilters(filters: SearchFilters): number {
     (filters.maxDuration ? 1 : 0) +
     (filters.minimumTagRank ? 1 : 0) +
     (filters.libraryScope !== 'all' ? 1 : 0) +
-    (sortMatches(filters.sort, SORTS[0] as SortOption) ? 0 : 1)
+    (sortMatches(filters.sort, BEST_MATCH_SORT) ? 0 : 1)
   );
 }
 
@@ -234,6 +236,18 @@ export interface FilterPill {
  * count and an all-or-nothing Clear, which makes removing one wrong choice mean
  * hunting back through every section.
  */
+function yearLabel(from: number | null, to: number | null): string {
+  if (from && to) return from === to ? String(from) : `${from}-${to}`;
+  if (from) return `${from} onward`;
+  return `Up to ${to}`;
+}
+
+function unitRangeLabel(min: number | null, max: number | null, unit: string): string {
+  if (min && max) return `${min}-${max}${unit}`;
+  if (min) return `${min}+${unit}`;
+  return `Up to ${max}${unit}`;
+}
+
 export function describeFilters(filters: SearchFilters): FilterPill[] {
   const pills: FilterPill[] = [];
   const label = (list: { value: string; label: string }[], value: string): string =>
@@ -245,13 +259,13 @@ export function describeFilters(filters: SearchFilters): FilterPill[] {
   }
 
   const formatOptions = filters.type === 'MANGA' ? MANGA_FORMATS : ANIME_FORMATS;
-  for (const value of filters.formats) pills.push({ id: 'format:' + value, label: label(formatOptions, value) });
-  for (const value of filters.statuses) pills.push({ id: 'status:' + value, label: label(STATUSES, value) });
-  for (const value of filters.genres) pills.push({ id: 'genre:' + value, label: value });
-  for (const value of filters.excludedGenres) pills.push({ id: 'excludeGenre:' + value, label: value, negated: true });
-  for (const value of filters.tags) pills.push({ id: 'tag:' + value, label: value });
-  for (const value of filters.excludedTags) pills.push({ id: 'excludeTag:' + value, label: value, negated: true });
-  for (const value of filters.sources) pills.push({ id: 'source:' + value, label: label(SOURCES, value) });
+  for (const value of filters.formats) pills.push({ id: `format:${value}`, label: label(formatOptions, value) });
+  for (const value of filters.statuses) pills.push({ id: `status:${value}`, label: label(STATUSES, value) });
+  for (const value of filters.genres) pills.push({ id: `genre:${value}`, label: value });
+  for (const value of filters.excludedGenres) pills.push({ id: `excludeGenre:${value}`, label: value, negated: true });
+  for (const value of filters.tags) pills.push({ id: `tag:${value}`, label: value });
+  for (const value of filters.excludedTags) pills.push({ id: `excludeTag:${value}`, label: value, negated: true });
+  for (const value of filters.sources) pills.push({ id: `source:${value}`, label: label(SOURCES, value) });
 
   if (filters.countryOfOrigin) {
     pills.push({ id: 'country', label: label(COUNTRIES, filters.countryOfOrigin) });
@@ -260,35 +274,28 @@ export function describeFilters(filters: SearchFilters): FilterPill[] {
     pills.push({ id: 'season', label: SEASONS.find((s) => s.value === filters.season)?.label ?? filters.season });
   }
   if (filters.yearFrom || filters.yearTo) {
-    const from = filters.yearFrom ?? null;
-    const to = filters.yearTo ?? null;
-    pills.push({
-      id: 'year',
-      label: from && to ? (from === to ? String(from) : from + '-' + to) : from ? from + ' onward' : 'Up to ' + to,
-    });
+    pills.push({ id: 'year', label: yearLabel(filters.yearFrom, filters.yearTo) });
   }
-  if (filters.minScore) pills.push({ id: 'minScore', label: filters.minScore + '+ score' });
+  if (filters.minScore) pills.push({ id: 'minScore', label: `${filters.minScore}+ score` });
   if (filters.minEpisodes || filters.maxEpisodes) {
-    const min = filters.minEpisodes;
-    const max = filters.maxEpisodes;
     const unit = filters.type === 'MANGA' ? ' ch' : ' eps';
     pills.push({
       id: 'episodes',
-      label: (min && max ? min + '-' + max : min ? min + '+' : 'Up to ' + max) + unit,
+      label: unitRangeLabel(filters.minEpisodes, filters.maxEpisodes, unit),
     });
   }
-  if (filters.maxDuration) pills.push({ id: 'duration', label: 'Under ' + filters.maxDuration + ' min' });
-  if (filters.minimumTagRank) pills.push({ id: 'tagRank', label: filters.minimumTagRank + '%+ tag match' });
+  if (filters.maxDuration) pills.push({ id: 'duration', label: `Under ${filters.maxDuration} min` });
+  if (filters.minimumTagRank) pills.push({ id: 'tagRank', label: `${filters.minimumTagRank}%+ tag match` });
   if (filters.libraryScope !== 'all') {
     pills.push({
       id: 'libraryScope',
       label: filters.libraryScope === 'in-library' ? 'In my library' : 'Not in my library',
     });
   }
-  if (!sortMatches(filters.sort, SORTS[0] as SortOption)) {
+  if (!sortMatches(filters.sort, BEST_MATCH_SORT)) {
     const option = SORTS.find((candidate) => sortMatches(filters.sort, candidate));
     if (option) {
-      pills.push({ id: 'sort', label: option.label + (isDescending(filters.sort) ? ' ↓' : ' ↑') });
+      pills.push({ id: 'sort', label: `${option.label}${isDescending(filters.sort) ? ' ↓' : ' ↑'}` });
     }
   }
   return pills;
@@ -401,6 +408,7 @@ export function toSearchOptions(filters: SearchFilters): SearchOptions {
 
 const DRAFT_KEY = 'search:draft';
 const SAVED_KEY = 'search:saved';
+const MAX_SAVED_SEARCHES = 20;
 
 export interface SavedSearch {
   id: string;
@@ -427,13 +435,13 @@ export function listSavedSearches(): SavedSearch[] {
 
 export function saveSearch(name: string, query: string, filters: SearchFilters): SavedSearch[] {
   const entry: SavedSearch = {
-    id: 'saved-' + Date.now().toString(36),
+    id: `saved-${Date.now().toString(36)}`,
     name: name.trim(),
     query,
     filters,
     createdAt: Date.now(),
   };
-  const next = [entry, ...listSavedSearches()].slice(0, 20);
+  const next = [entry, ...listSavedSearches()].slice(0, MAX_SAVED_SEARCHES);
   writeJson(SAVED_KEY, next);
   return next;
 }

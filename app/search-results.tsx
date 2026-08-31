@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, FlatList, Pressable, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,6 +22,9 @@ import { Text } from '@/ui/Text';
 
 /** Client-side scoping needs a few pages before it can look full. */
 const MIN_VISIBLE_BEFORE_AUTOFETCH = 12;
+
+/** Any more than this and the one-line summary starts wrapping past two rows. */
+const MAX_SUMMARY_PILLS = 4;
 
 export default function SearchResultsScreen() {
   const router = useRouter();
@@ -51,6 +54,7 @@ export default function SearchResultsScreen() {
   const studio = useStudioMedia(studioId, filters.sort);
 
   const active = studioId ? studio : search;
+  const { hasNextPage, isFetchingNextPage, isLoading, fetchNextPage } = active;
   const rawItems = useMemo(
     () => active.data?.pages.flatMap((page) => page.items) ?? [],
     [active.data],
@@ -72,9 +76,9 @@ export default function SearchResultsScreen() {
   useEffect(() => {
     if (filters.libraryScope === 'all') return;
     if (results.length >= MIN_VISIBLE_BEFORE_AUTOFETCH) return;
-    if (!active.hasNextPage || active.isFetchingNextPage || active.isLoading) return;
-    void active.fetchNextPage();
-  }, [filters.libraryScope, results.length, active]);
+    if (!hasNextPage || isFetchingNextPage || isLoading) return;
+    void fetchNextPage();
+  }, [filters.libraryScope, results.length, hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
   const columns = width >= 700 ? 4 : 3;
   const cardWidth = (width - spacing.gutter * 2 - spacing.sm * (columns - 1)) / columns;
@@ -89,22 +93,22 @@ export default function SearchResultsScreen() {
    */
   const summary = useMemo(() => {
     const parts: string[] = [];
-    if (!active.isLoading) {
+    if (!isLoading) {
       const count = results.length.toLocaleString();
       parts.push(
-        active.hasNextPage
-          ? count + '+ results'
-          : count + (results.length === 1 ? ' result' : ' results'),
+        hasNextPage
+          ? `${count}+ results`
+          : `${count} ${results.length === 1 ? 'result' : 'results'}`,
       );
     }
     if (!studioId) {
       parts.push(filters.type === 'MANGA' ? 'Manga' : 'Anime');
-      for (const pill of describeFilters(filters).slice(0, 4)) {
-        parts.push(pill.negated ? 'no ' + pill.label : pill.label);
+      for (const pill of describeFilters(filters).slice(0, MAX_SUMMARY_PILLS)) {
+        parts.push(pill.negated ? `no ${pill.label}` : pill.label);
       }
     }
     return parts.join(' · ');
-  }, [active.isLoading, active.hasNextPage, results.length, studioId, filters]);
+  }, [isLoading, hasNextPage, results.length, studioId, filters]);
 
   return (
     <Screen>
@@ -140,7 +144,7 @@ export default function SearchResultsScreen() {
 
       {active.isError ? (
         <ErrorState error={active.error} onRetry={() => void active.refetch()} />
-      ) : active.isLoading ? (
+      ) : isLoading ? (
         <View
           style={{
             flexDirection: 'row',
@@ -169,7 +173,7 @@ export default function SearchResultsScreen() {
       ) : (
         <FlatList
           data={results}
-          key={'results-' + columns}
+          key={`results-${columns}`}
           numColumns={columns}
           keyExtractor={(item) => String(item.id)}
           keyboardShouldPersistTaps="handled"
@@ -182,10 +186,10 @@ export default function SearchResultsScreen() {
           renderItem={({ item }) => <MediaCard media={item} width={cardWidth} />}
           onEndReachedThreshold={0.6}
           onEndReached={() => {
-            if (active.hasNextPage && !active.isFetchingNextPage) void active.fetchNextPage();
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
           }}
           ListFooterComponent={
-            active.isFetchingNextPage ? (
+            isFetchingNextPage ? (
               <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
             ) : null
           }

@@ -6,7 +6,7 @@ import type { LibraryEntry } from '@/data/models';
 import { resolveTitle } from '@/data/titles';
 import { useProgressActions } from '@/features/progress/useProgressActions';
 import { captureHero } from '@/features/title/hero';
-import { totalUnits, unitNoun } from '@/stores/libraryStore';
+import { totalUnits, unitNoun, unitNounCapitalised } from '@/stores/libraryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { radii, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -39,13 +39,15 @@ export function JumpBackIn({
   const title = resolveTitle(entry.snapshot.title, language);
   const total = totalUnits(entry);
   const noun = unitNoun(entry);
+  const nounCapitalised = unitNounCapitalised(entry);
   const atEnd = total !== null && entry.progress >= total;
   const percent = total ? Math.round((entry.progress / total) * 100) : null;
+  const heroUri = entry.snapshot.bannerImage ?? entry.snapshot.coverImage;
 
   const open = useCallback(async () => {
-    await captureHero(heroRef.current, entry.anilistId, entry.snapshot.bannerImage ?? entry.snapshot.coverImage);
+    await captureHero(heroRef.current, entry.anilistId, heroUri);
     router.push({ pathname: '/title/[id]', params: { id: String(entry.anilistId) } });
-  }, [router, entry]);
+  }, [router, entry.anilistId, heroUri]);
 
   return (
     <PressableScale
@@ -54,8 +56,8 @@ export function JumpBackIn({
       rotateTo={0.2}
       radiusFrom={radii.lg}
       radiusTo={radii.xl}
-      accessibilityLabel={'Continue ' + title}
-      accessibilityHint={'Opens details for ' + title}
+      accessibilityLabel={`Continue ${title}`}
+      accessibilityHint={`Opens details for ${title}`}
       style={{
         marginHorizontal: spacing.gutter,
         height: 300,
@@ -65,9 +67,9 @@ export function JumpBackIn({
     >
       <View ref={heroRef} collapsable={false} style={{ flex: 1 }}>
         <Cover
-          uri={entry.snapshot.bannerImage ?? entry.snapshot.coverImage}
+          uri={heroUri}
           radius={radii.lg}
-          accessibilityLabel={title + ' artwork'}
+          accessibilityLabel={`${title} artwork`}
         />
         <Scrim height="72%" />
 
@@ -89,24 +91,24 @@ export function JumpBackIn({
 
           <Text variant="bodyMd" colour="onSurfaceVariant" numberOfLines={1} style={{ marginTop: 2 }}>
             {nextEpisodeLabel ??
-              noun.charAt(0).toUpperCase() + noun.slice(1) + ' ' + (entry.progress + 1) + ' up next'}
+              `${nounCapitalised} ${entry.progress + 1} up next`}
           </Text>
 
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing.md }}>
             <View style={{ flex: 1, marginRight: spacing.md }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text variant="labelLg" colour={colors.primary}>
-                  {percent !== null ? percent + '% complete' : 'In progress'}
+                  {percent !== null ? `${percent}% complete` : 'In progress'}
                 </Text>
                 <Text variant="labelLg" colour="onSurfaceVariant">
-                  {entry.progress + (total ? ' / ' + total : '')}
+                  {total ? `${entry.progress} / ${total}` : String(entry.progress)}
                 </Text>
               </View>
               <ProgressBar
                 value={total ? entry.progress / total : 0}
                 height={6}
                 style={{ marginTop: spacing.sm }}
-                accessibilityLabel={(percent ?? 0) + ' percent complete'}
+                accessibilityLabel={`${percent ?? 0} percent complete`}
               />
             </View>
 
@@ -115,7 +117,7 @@ export function JumpBackIn({
               disabled={atEnd}
               celebrate={!atEnd}
               onIncrement={() => logEpisode(entry.anilistId)}
-              accessibilityLabel={'Log one ' + noun + ' of ' + title}
+              accessibilityLabel={`Log one ${noun} of ${title}`}
             />
           </View>
         </View>

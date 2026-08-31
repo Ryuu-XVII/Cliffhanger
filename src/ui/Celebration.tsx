@@ -115,7 +115,9 @@ export function Celebration({
 
           <Animated.View style={[{ alignItems: 'center', marginTop: spacing.xl }, cardStyle]}>
             <Text variant="labelLg" colour="onSurfaceVariant" uppercase>
-              {rewatchCount && rewatchCount > 0 ? 'Rewatch ' + rewatchCount + ' finished' : 'Series complete'}
+              {rewatchCount !== undefined && rewatchCount > 0
+                ? `Rewatch ${rewatchCount} finished`
+                : 'Series complete'}
             </Text>
             <Text
               variant="displayLgMobile"

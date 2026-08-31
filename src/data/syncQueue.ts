@@ -33,7 +33,7 @@ export interface SyncOp {
   origin?: 'local' | 'anilist';
 }
 
-const QUEUE_KEY = (uid: string): string => 'sync:' + uid + ':queue';
+const QUEUE_KEY = (uid: string): string => `sync:${uid}:queue`;
 
 export function readQueue(uid: string): SyncOp[] {
   return readJson<SyncOp[]>(QUEUE_KEY(uid)) ?? [];

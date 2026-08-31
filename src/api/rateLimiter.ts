@@ -5,6 +5,9 @@
  */
 export type RateLimitPriority = 'high' | 'normal';
 
+/** Floor on the token-wait sleep, so a near-full bucket cannot spin. */
+const MIN_TOKEN_WAIT_MS = 25;
+
 export class RateLimiter {
   private tokens: number;
   private lastRefill: number;
@@ -79,7 +82,7 @@ export class RateLimiter {
         this.refill();
         if (this.tokens < 1) {
           const waitMs = Math.ceil((1 - this.tokens) / this.refillPerMs);
-          await sleep(Math.max(waitMs, 25));
+          await sleep(Math.max(waitMs, MIN_TOKEN_WAIT_MS));
           continue;
         }
 

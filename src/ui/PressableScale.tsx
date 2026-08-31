@@ -55,27 +55,23 @@ export function PressableScale({
     [onPressOut],
   );
 
+  function pressedStyle(): ViewStyle | null {
+    if (!pressed) return null;
+    if (reduced) return { opacity: 0.94 };
+    return {
+      opacity: 0.94,
+      transform: [{ scale: scaleTo }, { rotateZ: `${rotateTo}deg` }],
+      ...(radiusFrom !== undefined && radiusTo !== undefined ? { borderRadius: radiusTo } : {}),
+    };
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
       {...rest}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      style={[
-        { borderRadius: radiusFrom ?? radii.DEFAULT },
-        style,
-        pressed
-          ? reduced
-            ? { opacity: 0.94 }
-            : {
-                opacity: 0.94,
-                transform: [{ scale: scaleTo }, { rotateZ: rotateTo + 'deg' }],
-                ...(radiusFrom !== undefined && radiusTo !== undefined
-                  ? { borderRadius: radiusTo }
-                  : {}),
-              }
-          : null,
-      ]}
+      style={[{ borderRadius: radiusFrom ?? radii.DEFAULT }, style, pressedStyle()]}
     >
       {children as React.ReactNode}
     </Pressable>

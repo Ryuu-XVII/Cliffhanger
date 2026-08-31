@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -39,6 +39,15 @@ const PAGES = [
     title: 'Titles, your way',
     body: 'Pick how titles read. You can change this any time in settings.',
   },
+];
+
+const NOTIFICATIONS_PAGE = 1;
+const TITLE_LANGUAGE_PAGE = 2;
+
+const TITLE_LANGUAGE_OPTIONS: Array<[TitleLanguage, string]> = [
+  ['romaji', 'Romaji'],
+  ['english', 'English'],
+  ['native', 'Native'],
 ];
 
 export default function Onboarding() {
@@ -145,7 +154,7 @@ export default function Onboarding() {
               {item.body}
             </Text>
 
-            {index === 1 ? (
+            {index === NOTIFICATIONS_PAGE ? (
               notifChoice ? (
                 <Text
                   variant="labelLg"
@@ -168,15 +177,9 @@ export default function Onboarding() {
               )
             ) : null}
 
-            {index === 2 ? (
+            {index === TITLE_LANGUAGE_PAGE ? (
               <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl }}>
-                {(
-                  [
-                    ['romaji', 'Romaji'],
-                    ['english', 'English'],
-                    ['native', 'Native'],
-                  ] as Array<[TitleLanguage, string]>
-                ).map(([value, label]) => (
+                {TITLE_LANGUAGE_OPTIONS.map(([value, label]) => (
                   <Chip
                     key={value}
                     label={label}

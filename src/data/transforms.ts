@@ -1,5 +1,5 @@
 import type { AniListMedia, AniListMediaLite } from '@/api/anilist/types';
-import type { EntrySnapshot, MediaType } from './models';
+import type { EntrySnapshot, ListStatus, MediaType } from './models';
 
 /**
  * §4.5.3 - Firestore stores IDs plus a minimal denormalised snapshot, never a
@@ -31,7 +31,7 @@ export function mediaTypeOf(media: AniListMediaLite | AniListMedia): MediaType {
 }
 
 /** AniList list status strings map 1:1 onto ours, but guard the unknown case. */
-export function fromAniListStatus(status: string | null | undefined): EntryStatusLike {
+export function fromAniListStatus(status: string | null | undefined): ListStatus {
   switch (status) {
     case 'CURRENT':
       return 'WATCHING';
@@ -50,7 +50,7 @@ export function fromAniListStatus(status: string | null | undefined): EntryStatu
   }
 }
 
-export function toAniListStatus(status: EntryStatusLike): string {
+export function toAniListStatus(status: ListStatus): string {
   switch (status) {
     case 'WATCHING':
       return 'CURRENT';
@@ -62,14 +62,6 @@ export function toAniListStatus(status: EntryStatusLike): string {
       return status;
   }
 }
-
-type EntryStatusLike =
-  | 'WATCHING'
-  | 'PLANNING'
-  | 'COMPLETED'
-  | 'ON_HOLD'
-  | 'DROPPED'
-  | 'REWATCHING';
 
 /** AniList descriptions carry a little HTML even with asHtml:false. */
 export function stripHtml(input: string | null | undefined): string {

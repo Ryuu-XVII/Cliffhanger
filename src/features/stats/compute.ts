@@ -54,12 +54,10 @@ export function computeStats(entries: LibraryEntry[]): LibraryStats {
     rewatchTotal += entry.rewatches;
 
     const isMovie = entry.snapshot.format === 'MOVIE';
-    const passes = 1 + entry.rewatches;
-    const unitsThisPass = entry.progress;
     const totalUnits = entry.snapshot.totalEpisodes ?? entry.progress;
 
     // A rewatch means the whole series was seen again, not the current progress.
-    const units = unitsThisPass + entry.rewatches * totalUnits;
+    const units = entry.progress + entry.rewatches * totalUnits;
     episodesWatched += units;
     minutesWatched += units * (isMovie ? MINUTES_PER_MOVIE : MINUTES_PER_EPISODE);
 
@@ -77,10 +75,7 @@ export function computeStats(entries: LibraryEntry[]): LibraryStats {
     const format = entry.snapshot.format ?? 'Unknown';
     formats.set(format, (formats.get(format) ?? 0) + 1);
 
-    if (
-      passes > 1 &&
-      (!longestRunning || entry.rewatches > longestRunning.rewatches)
-    ) {
+    if (entry.rewatches > 0 && (!longestRunning || entry.rewatches > longestRunning.rewatches)) {
       longestRunning = entry;
     }
   }
