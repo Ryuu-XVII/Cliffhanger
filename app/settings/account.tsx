@@ -15,7 +15,6 @@ import {
   updatePassword,
 } from '@/data/auth';
 import { supabaseConfigured } from '@/data/supabase';
-import { deleteAllUserData, remoteAvailable } from '@/data/remote';
 import { localStore } from '@/data/localStore';
 import { clearQueue } from '@/data/syncQueue';
 import { useAuthStore } from '@/stores/authStore';
@@ -96,9 +95,7 @@ export default function AccountSettingsScreen() {
     if (!uid) return;
     setBusy(true);
     try {
-      if (remoteAvailable() && !isAnonymous) {
-        await deleteAllUserData();
-      }
+      if (supabaseConfigured && user) await deleteAccount();
       localStore.clear(uid);
       clearQueue(uid);
       clearSession();
@@ -106,12 +103,6 @@ export default function AccountSettingsScreen() {
       await clearAniListToken();
       setAniListToken(null);
 
-      if (supabaseConfigured) {
-        await deleteAccount().catch(() => {
-          // Supabase may require a recent session before deleting the account.
-          toast.error('Sign in again, then delete. Your data has already been removed.');
-        });
-      }
 
       toast.success('Account deleted');
       router.replace('/(tabs)');

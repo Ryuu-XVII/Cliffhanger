@@ -13,21 +13,11 @@ import { isWithinQuietHours } from '@/utils/time';
 import { palette } from '@/theme/tokens';
 import { supabase } from '@/data/supabase';
 
-/**
- * F-13 airing notifications.
- *
- * §11 puts the authoritative pipeline in Cloud Functions + FCM (see
- * functions/src/notifications.ts). This module is the device half: permissions,
- * the push token, deep linking, and a local scheduler that covers the next
- * seven days so alerts still work before the backend is deployed and while the
- * device is offline.
- *
- * Two rules from §11 are enforced here as well as server-side:
- *   1. Never send the same episode twice - the idempotency key is
- *      anilistId + episode.
- *   2. Titles are localised with the user preference, notifications included
- *      (§4.6). A competitor ships this bug; we do not.
+/** Airing alerts have exactly one delivery transport per device/build.
+ * Local (default) works offline and for guests. Push requires an authenticated
+ * account and the deployed Edge Function. We never silently switch transports.
  */
+export const AIRING_DELIVERY_MODE = process.env.EXPO_PUBLIC_AIRING_DELIVERY_MODE === 'push' ? 'push' : 'local';
 
 const SCHEDULED_KEY = 'notify:scheduled';
 const TOKEN_KEY = 'notify:push-token';
@@ -37,7 +27,7 @@ const MAX_SCHEDULE_PAGES = 10;
 
 interface ScheduledRecord {
   /** idempotency key -> expo notification id */
-  [key: string]: { id: string; airingAt: number };
+  [key: string]: { id: string; airingAt: number; signature?: string };
 }
 
 export function registerNotificationHandlers(): () => void {
@@ -92,19 +82,22 @@ export async function requestPermission(): Promise<boolean> {
  * The FCM/Expo push token, handed to the backend so the scheduled function can
  * reach this device. Failure is non-fatal: local scheduling still works.
  */
-export async function registerPushToken(): Promise<string | null> {
+export async function registerPushToken(options: { requestPermission?: boolean } = {}): Promise<string | null> {
+  const uid = useLibraryStore.getState().uid;
   try {
-    if (!(await requestPermission())) return null;
+    if (!(await (options.requestPermission === false ? checkPermission() : requestPermission()))) return null;
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
     const token = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     writeJson(TOKEN_KEY, token.data);
     const { data: userData } = await supabase.auth.getUser();
-    if (userData.user) {
+    if (userData.user && userData.user.id === uid && useLibraryStore.getState().uid === uid) {
       const { error } = await supabase.from('devices').upsert({
         user_id: userData.user.id,
         token: token.data,
         platform: Platform.OS,
         timezone_offset_minutes: -new Date().getTimezoneOffset(),
+        delivery_mode: AIRING_DELIVERY_MODE,
+        updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,token' });
       if (error) throw error;
     }
@@ -122,15 +115,18 @@ function idempotencyKey(anilistId: number, episode: number): string {
  * Schedules local alerts for the next week of episodes belonging to titles the
  * user is actively watching. Idempotent: re-running never double-schedules.
  */
-export async function syncAiringNotifications(options: { requestPermission?: boolean } = {}): Promise<number> {
+async function scheduleAiringNotifications(options: { requestPermission?: boolean } = {}): Promise<number> {
   const settings = useSettingsStore.getState().settings;
-  if (!settings.notificationsEnabled) {
+  const uid = useLibraryStore.getState().uid;
+  const signature = watchSignature();
+  const current = () => useLibraryStore.getState().uid === uid && watchSignature() === signature;
+  if (AIRING_DELIVERY_MODE === 'push' || !settings.notificationsEnabled) {
     await cancelAll();
     return 0;
   }
 
   const allowed = options.requestPermission === false ? await checkPermission() : await requestPermission();
-  if (!allowed) return 0;
+  if (!allowed || !current()) return 0;
 
   const entries = Object.values(useLibraryStore.getState().entries).filter((entry) => {
     if (entry.mediaType !== 'ANIME') return false;
@@ -151,6 +147,7 @@ export async function syncAiringNotifications(options: { requestPermission?: boo
   const scheduleItems = [] as Awaited<ReturnType<typeof getAiringSchedule>>['items'];
   for (let schedulePage = 1; schedulePage <= MAX_SCHEDULE_PAGES; schedulePage += 1) {
     const page = await getAiringSchedule(from, to, schedulePage);
+    if (!current()) return 0;
     scheduleItems.push(...page.items);
     if (!page.hasNextPage) break;
   }
@@ -168,7 +165,7 @@ export async function syncAiringNotifications(options: { requestPermission?: boo
     const key = idempotencyKey(media.id, item.episode);
     const already = existing[key];
 
-    if (already && already.airingAt === item.airingAt) {
+    if (already && already.airingAt === item.airingAt && already.signature === signature) {
       next[key] = already;
       continue;
     }
@@ -191,12 +188,18 @@ export async function syncAiringNotifications(options: { requestPermission?: boo
         ...(Platform.OS === 'android' ? { channelId: 'airing' } : null),
       },
       trigger: {
+        ...(Platform.OS === 'android' ? { channelId: 'airing' } : null),
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: fireAt,
       },
     });
 
-    next[key] = { id, airingAt: item.airingAt };
+    if (!current()) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+      for (const record of Object.values(next)) await Notifications.cancelScheduledNotificationAsync(record.id).catch(() => undefined);
+      return 0;
+    }
+    next[key] = { id, airingAt: item.airingAt, signature };
     scheduled += 1;
   }
 
@@ -209,6 +212,13 @@ export async function syncAiringNotifications(options: { requestPermission?: boo
 
   writeJson(SCHEDULED_KEY, next);
   return scheduled;
+}
+
+let scheduling: Promise<unknown> = Promise.resolve();
+export function syncAiringNotifications(options: { requestPermission?: boolean } = {}): Promise<number> {
+  const next = scheduling.catch(() => undefined).then(() => scheduleAiringNotifications(options));
+  scheduling = next;
+  return next;
 }
 
 export async function cancelAll(): Promise<void> {
@@ -224,6 +234,18 @@ export function scheduledCount(): number {
 const LAST_RUN_KEY = 'notify:last-run';
 const SIGNATURE_KEY = 'notify:signature';
 const MIN_INTERVAL_MS = 60 * 60 * 1000;
+let tokenRefresh: Promise<string | null> | null = null;
+let registeredUid: string | null = null;
+let registeredAt = 0;
+async function refreshPushRegistration(): Promise<void> {
+  const uid = useLibraryStore.getState().uid;
+  if (registeredUid === uid && Date.now() - registeredAt < MIN_INTERVAL_MS) return;
+  if (tokenRefresh) { await tokenRefresh; return; }
+  tokenRefresh = registerPushToken({ requestPermission: false });
+  try {
+    if (await tokenRefresh && useLibraryStore.getState().uid === uid) { registeredUid = uid; registeredAt = Date.now(); }
+  } finally { tokenRefresh = null; }
+}
 
 /**
  * A signature of what the schedule depends on: which titles are being watched
@@ -239,6 +261,8 @@ function watchSignature(): string {
     .join(',');
 
   return [
+    useLibraryStore.getState().uid ?? 'no-account',
+    AIRING_DELIVERY_MODE,
     ids,
     settings.notificationsEnabled ? 'on' : 'off',
     settings.notifyOnAiringDefault ? 'default-on' : 'default-off',
@@ -258,6 +282,7 @@ function watchSignature(): string {
  */
 export async function maybeSyncAiringNotifications(): Promise<number | null> {
   const settings = useSettingsStore.getState().settings;
+  if (settings.notificationsEnabled) await refreshPushRegistration();
   const signature = watchSignature();
   const previousSignature = readJson<string>(SIGNATURE_KEY);
 

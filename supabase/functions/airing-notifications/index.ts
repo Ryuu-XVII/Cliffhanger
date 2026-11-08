@@ -40,7 +40,7 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
   const now = Math.floor(Date.now() / 1000);
-  const { data: entries, error: entryError } = await supabase.from('entries').select('user_id,anilist_id,data').in('data->>status', ['WATCHING', 'REWATCHING']);
+  const { data: entries, error: entryError } = await supabase.from('entries').select('user_id,anilist_id,data').eq('deleted', false).in('data->>status', ['WATCHING', 'REWATCHING']);
   if (entryError) return Response.json({ error: entryError.message }, { status: 500 });
   if (!entries || entries.length === 0) return Response.json({ sent: 0, claimed: 0 });
 
@@ -48,14 +48,14 @@ Deno.serve(async (request) => {
 
   const airings: Airing[] = [];
   for (let page = 1; page <= 10; page += 1) {
-    const response = await fetch(anilistEndpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query: airingQuery, variables: { page, from: now, to: now + 24 * 3600 } }) });
+    const response = await fetch(anilistEndpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query: airingQuery, variables: { page, from: now - 3600 - 300, to: now } }) });
     if (!response.ok) return Response.json({ error: 'AniList request failed' }, { status: 502 });
     const payload = await response.json();
     airings.push(...(payload.data?.Page?.airingSchedules ?? []));
     if (!payload.data?.Page?.pageInfo?.hasNextPage) break;
   }
 
-  const relevant = airings.filter((airing) => airing.media && watched.has(airing.media.id));
+  const relevant = airings.filter((airing) => airing.airingAt <= now && airing.media && watched.has(airing.media.id));
   if (relevant.length === 0) return Response.json({ sent: 0, claimed: 0 });
 
   // Batch the per-user lookups instead of querying inside the loop - the old
@@ -63,7 +63,7 @@ Deno.serve(async (request) => {
   const userIds = Array.from(new Set(entries.map((row) => row.user_id)));
   const [{ data: profiles }, { data: devices }] = await Promise.all([
     supabase.from('profiles').select('id,settings').in('id', userIds),
-    supabase.from('devices').select('user_id,token,timezone_offset_minutes,updated_at').in('user_id', userIds).order('updated_at', { ascending: false }),
+    supabase.from('devices').select('user_id,token,timezone_offset_minutes,updated_at').eq('delivery_mode', 'push').in('user_id', userIds).order('updated_at', { ascending: false }),
   ]);
 
   const settingsByUser = new Map((profiles ?? []).map((row) => [row.id, (row.settings ?? {}) as Record<string, unknown>]));
@@ -104,7 +104,7 @@ Deno.serve(async (request) => {
       if (settings.notificationsEnabled === false) continue;
       if (entryData.notify === false) continue;
       if (entryData.notify !== true && settings.notifyOnAiringDefault === false) continue;
-      if (isQuietHours(settings.quietHours as { start?: string; end?: string } | null, offsetByUser.get(entry.user_id) ?? 0, airing.airingAt)) continue;
+      if (isQuietHours(settings.quietHours as { start?: string; end?: string } | null, offsetByUser.get(entry.user_id) ?? 0, now)) continue;
       if ((tokensByUser.get(entry.user_id) ?? []).length === 0) continue;
 
       candidates.push({
@@ -176,18 +176,35 @@ Deno.serve(async (request) => {
   const deliveredIds = new Set<string>();
   for (let index = 0; index < messages.length; index += PUSH_CHUNK) {
     const chunk = messages.slice(index, index + PUSH_CHUNK);
-    const push = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(chunk.map((item) => item.message)),
-    });
-    if (!push.ok) {
-      for (const item of chunk) failedIds.add(item.receiptId);
-      continue;
+    try {
+      const push = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(chunk.map((item) => item.message)),
+        signal: AbortSignal.timeout(15_000),
+      });
+      // Only a definite HTTP rejection is retried. Network timeouts are
+      // ambiguous: retain claims because Expo may already have accepted them.
+      if (!push.ok) {
+        for (const item of chunk) failedIds.add(item.receiptId);
+        continue;
+      }
+      const tickets = (await push.json()).data ?? [];
+      for (let i = 0; i < chunk.length; i += 1) {
+        const ticket = tickets[i];
+        const item = chunk[i];
+        if (!item) continue;
+        if (ticket?.status === 'ok') {
+          sent += 1;
+          deliveredIds.add(item.receiptId);
+        } else if (ticket?.status === 'error') {
+          failedIds.add(item.receiptId);
+        } else {
+          deliveredIds.add(item.receiptId); // unknown outcome: do not duplicate
+        }
+      }
+    } catch {
+      for (const item of chunk) deliveredIds.add(item.receiptId);
     }
-    const tickets = (await push.json()).data ?? [];
-    sent += tickets.filter((ticket: { status?: string }) => ticket.status === 'ok').length;
-    for (const item of chunk) deliveredIds.add(item.receiptId);
   }
 
   // A receipt is only released when none of its devices got the push; if one of
@@ -207,5 +224,6 @@ function isQuietHours(quiet: { start?: string; end?: string } | null, offset: nu
   const minutes = local.getUTCHours() * 60 + local.getUTCMinutes();
   const parse = (value: string) => { const [h, m] = value.split(':').map(Number); return h * 60 + m; };
   const start = parse(quiet.start); const end = parse(quiet.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start === end) return false;
   return start < end ? minutes >= start && minutes < end : minutes >= start || minutes < end;
 }

@@ -79,3 +79,22 @@ The app talks to Supabase project `sturyqkojzjlxmnxmvud` (`Cliffhanger`, eu-west
 - **Privacy policy URL.** Play requires a publicly reachable URL. The in-app
   screen covers the app requirement but Play also wants it hosted.
 - **Trademark check on the name** (spec D-5) before the listing goes live.
+
+## Reliability update deployment
+
+Apply `supabase/migrations/202611080001_library_sync.sql` before releasing this
+client. It replaces direct entry/list writes with `apply_library_change` and
+keeps deletion versions. Existing clients must update; otherwise their direct
+cloud writes will be denied while their local library remains available.
+
+Choose `EXPO_PUBLIC_AIRING_DELIVERY_MODE=local` or `push` for each build.
+Deploy the notification Edge Function with `--no-verify-jwt` because the handler
+validates its own `CRON_SECRET`. Populate the two Vault values documented in
+README before applying `supabase/cron.sql`; the cron file now supplies the
+private Authorization header itself.
+
+Run `npm run check` and the Android export before packaging. Test on physical
+devices: cold-start persistence, editing during a slow sync, account switching,
+guest upgrade, cross-device deletions/renames, notification language/quiet
+hours, and the selected transport. The automated checks do not establish that
+an external Supabase project or Expo push credentials have been deployed.

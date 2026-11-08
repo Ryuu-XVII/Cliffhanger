@@ -67,6 +67,7 @@ export interface LibraryEntry {
 
 export interface CustomList {
   id: string;
+  updatedAt?: number;
   name: string;
   order: number;
   createdAt: number;

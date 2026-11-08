@@ -1,7 +1,7 @@
 import type { User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
-import { setAniListToken } from '@/api/anilist';
+import { getAniListTokenVersion, setAniListToken } from '@/api/anilist/client';
 import { readJson, writeJson } from '@/api/kv';
 import { clearAniListToken, readAniListToken } from '@/data/auth';
 import { supabase, supabaseConfigured } from '@/data/supabase';
@@ -17,6 +17,7 @@ import { useSettingsStore } from './settingsStore';
 
 const LOCAL_UID_KEY = 'auth:local-uid';
 const LINKED_KEY = 'auth:linked';
+const LINK_OWNER_KEY = 'auth:linked-owner';
 const UPGRADE_PROMPT_KEY = 'auth:upgrade-prompt-shown';
 
 /** §5 - prompt to upgrade after a meaningful action, never on first launch. */
@@ -64,37 +65,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   upgradePromptShown: readJson<boolean>(UPGRADE_PROMPT_KEY) ?? false,
 
   initialise: () => {
-    // Restore the AniList token before any query runs so authenticated reads
-    // respect the account preferences from the first request onward.
-    void readAniListToken().then((token) => setAniListToken(token));
+    let disposed = false;
+    let authEvent = 0;
+    const restoreToken = (uid: string) => {
+      const version = getAniListTokenVersion();
+      if (readJson<string>(LINK_OWNER_KEY) !== uid || !get().linked.anilist) return Promise.resolve();
+      return readAniListToken().then((token) => {
+        if (!disposed && get().uid === uid && getAniListTokenVersion() === version) setAniListToken(token);
+      });
+    };
 
     if (!supabaseConfigured) {
       const uid = localUid();
       adoptSession(uid);
       set({ ready: true, uid, user: null, isAnonymous: true });
-      return () => undefined;
+      restoreToken(uid);
+      return () => { disposed = true; };
     }
 
     const applySession = (user: User | null) => {
+      if (disposed) return;
       const uid = user?.id ?? localUid();
       const previousUid = get().uid;
 
-      if (previousUid && previousUid !== uid) {
+      if ((previousUid && previousUid !== uid) || readJson<string>(LINK_OWNER_KEY) !== uid) {
         // Linked credentials are device-local; clear them when the account
         // changes so one user's AniList identity cannot appear for another.
         void clearAniListToken();
         const emptyLinked: LinkedAccounts = { anilist: null, mal: null };
         writeJson(LINKED_KEY, emptyLinked);
+        writeJson(LINK_OWNER_KEY, uid);
         set({ linked: emptyLinked });
 
         // Signing into a real account from a guest session: carry the local
         // library across so nothing logged before signup is lost (§5).
-        if (previousUid.startsWith('local-')) {
+        if (previousUid?.startsWith('local-') && user) {
           localStore.migrate(previousUid, uid, { overwrite: false });
         }
       }
 
-      adoptSession(uid);
+      if (previousUid !== uid) adoptSession(uid);
       set({
         ready: true,
         user,
@@ -102,17 +112,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAnonymous: !user || Boolean(user.is_anonymous),
       });
 
-      if (user) void useLibraryStore.getState().sync();
+      void restoreToken(uid).then(() => {
+        if (user && !disposed && get().uid === uid) void useLibraryStore.getState().sync();
+      });
     };
-    void supabase.auth.getUser().then(({ data }) => applySession(data.user));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => applySession(session?.user ?? null));
-    return () => listener.subscription.unsubscribe();
+    // A late initial lookup must never undo a newer sign-in/out event.
+    void supabase.auth.getSession().then(({ data }) => {
+      if (authEvent === 0) applySession(data.session?.user ?? null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      authEvent += 1;
+      applySession(session?.user ?? null);
+    });
+    return () => { disposed = true; listener.subscription.unsubscribe(); };
   },
 
   setLinked: (patch) => {
     const linked = { ...get().linked, ...patch };
     set({ linked });
     writeJson(LINKED_KEY, linked);
+    writeJson(LINK_OWNER_KEY, get().uid);
   },
 
   markUpgradePromptShown: () => {
