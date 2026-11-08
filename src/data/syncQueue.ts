@@ -20,6 +20,8 @@ export type SyncOpType =
 export interface SyncOp {
   /** Coalescing key: one pending op per target document. */
   key: string;
+  revision?: string;
+  version?: number;
   type: SyncOpType;
   payload: unknown;
   queuedAt: number;
@@ -43,22 +45,32 @@ function writeQueue(uid: string, ops: SyncOp[]): void {
   writeJson(QUEUE_KEY(uid), ops);
 }
 
+let sequence = 0;
+let lastQueuedAt = 0;
+
 export function enqueue(uid: string, op: Omit<SyncOp, 'queuedAt' | 'attempts' | 'lastError'>): void {
   const queue = readQueue(uid).filter((existing) => existing.key !== op.key);
-  queue.push({ ...op, queuedAt: Date.now(), attempts: 0, lastError: null });
+  lastQueuedAt = Math.max(Date.now(), lastQueuedAt + 1);
+  queue.push({ ...op, revision: `${lastQueuedAt}:${++sequence}`, queuedAt: lastQueuedAt, attempts: 0, lastError: null });
   writeQueue(uid, queue);
 }
 
-export function removeOp(uid: string, key: string): void {
+export function removeOp(uid: string, key: string, expected?: SyncOp): void {
   writeQueue(
     uid,
-    readQueue(uid).filter((op) => op.key !== key),
+    readQueue(uid).filter((op) => op.key !== key || (expected !== undefined && !sameRevision(op, expected))),
   );
 }
 
-export function markFailed(uid: string, key: string, error: string): void {
+function sameRevision(a: SyncOp, b: SyncOp): boolean {
+  return a.revision !== undefined || b.revision !== undefined
+    ? a.revision === b.revision
+    : JSON.stringify(a) === JSON.stringify(b);
+}
+
+export function markFailed(uid: string, key: string, error: string, expected?: SyncOp): void {
   const queue = readQueue(uid).map((op) =>
-    op.key === key ? { ...op, attempts: op.attempts + 1, lastError: error } : op,
+    op.key === key && (!expected || sameRevision(op, expected)) ? { ...op, attempts: op.attempts + 1, lastError: error } : op,
   );
   writeQueue(uid, queue);
 }

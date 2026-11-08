@@ -3,6 +3,8 @@ import * as AuthSession from 'expo-auth-session';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
+import { setAniListToken } from '@/api/anilist/client';
+import { readJson } from '@/api/kv';
 import { supabase } from './supabase';
 
 /**
@@ -37,7 +39,17 @@ export async function signUpWithEmail(email: string, password: string, displayNa
 }
 export async function signInWithEmail(email: string, password: string) { const { data, error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; return data.user!; }
 export async function resetPassword(email: string) { const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: authCallbackUrl() }); if (error) throw error; }
-export async function signOutUser() { const { error } = await supabase.auth.signOut(); if (error) throw error; await clearAniListToken(); }
+export async function signOutUser() {
+  const token = readJson<string>('notify:push-token');
+  const { data } = await supabase.auth.getSession();
+  if (token && data.session?.user) {
+    const { error } = await supabase.from('devices').delete().eq('user_id', data.session.user.id).eq('token', token);
+    if (error) throw error;
+  }
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+  await clearAniListToken();
+}
 export function isGoogleConfigured() { return Boolean(process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? process.env.VITE_GOOGLE_CLIENT_ID); }
 export async function signInWithGoogle() { const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: authCallbackUrl(), skipBrowserRedirect: true } }); if (error || !data.url) throw error ?? new Error('Google sign-in failed'); await finishOAuth(data.url); return (await supabase.auth.getUser()).data.user!; }
 export async function isAppleAvailable() { return Platform.OS === 'ios' && AppleAuthentication.isAvailableAsync(); }
@@ -95,7 +107,7 @@ async function finishOAuth(url: string): Promise<void> {
   if (!applied) throw new Error('Sign-in returned no session');
 }
 export async function readAniListToken() { try { const token = await SecureStore.getItemAsync(ANILIST_TOKEN_KEY); const expiry = await SecureStore.getItemAsync(ANILIST_EXPIRY_KEY); if (expiry && Number(expiry) < Date.now()) { await clearAniListToken(); return null; } return token; } catch { return null; } }
-export async function clearAniListToken() { await SecureStore.deleteItemAsync(ANILIST_TOKEN_KEY).catch(() => undefined); await SecureStore.deleteItemAsync(ANILIST_EXPIRY_KEY).catch(() => undefined); }
+export async function clearAniListToken() { setAniListToken(null); await SecureStore.deleteItemAsync(ANILIST_TOKEN_KEY).catch(() => undefined); await SecureStore.deleteItemAsync(ANILIST_EXPIRY_KEY).catch(() => undefined); }
 /** Takes no argument: the function deletes whoever the JWT says is calling. */
 export async function deleteAccount() { const { error } = await supabase.rpc('delete_my_account'); if (error) throw error; await supabase.auth.signOut(); }
 

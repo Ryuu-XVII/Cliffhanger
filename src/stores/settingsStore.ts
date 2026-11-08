@@ -100,7 +100,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return;
     }
     const saved = localStore.readSettings(uid);
-    const merged = saved ? { ...DEFAULT_SETTINGS, ...saved } : get().settings;
+    const merged = { ...DEFAULT_SETTINGS, ...(saved ?? (uid.startsWith('local-') ? readJson<Partial<UserSettings>>(KEY) : null) ?? {}) };
     const { settings, migrated } = applyDefaultMigrations(merged, uid);
     set({ uid, settings });
     localStore.writeSettings(uid, settings);
@@ -116,8 +116,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   update: (patch) => {
     const next = { ...get().settings, ...patch };
-    set({ settings: next });
     writeJson(KEY, next);
+    set({ settings: next });
     const uid = get().uid;
     if (uid) {
       localStore.writeSettings(uid, next);

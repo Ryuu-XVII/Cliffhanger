@@ -1,9 +1,10 @@
 import { kv, readJson, writeJson } from '@/api/kv';
+import { clearQueue, enqueue, readQueue } from './syncQueue';
 import type { CustomList, LibraryEntry, UserSettings } from './models';
 
 /**
  * The offline source of truth (F-10). Every read the UI performs hits this
- * first; Firestore is a sync target, not a dependency of rendering.
+ * first; Supabase is a sync target, not a dependency of rendering.
  *
  * Data is namespaced per uid so an anonymous library and a signed-in library
  * never bleed into each other - and so the anonymous-to-account upgrade can
@@ -17,13 +18,25 @@ const META = (uid: string): string => `lib:${uid}:meta`;
 
 export interface LocalMeta {
   lastSyncedAt: number | null;
-  /** Cursor for pulling only what changed since the last sync. */
+  /** Legacy cursor retained for reading metadata written by older clients. */
   lastRemoteUpdatedAt: number | null;
 }
 
 export const localStore = {
   readEntries(uid: string): Record<string, LibraryEntry> {
-    return readJson<Record<string, LibraryEntry>>(ENTRIES(uid)) ?? {};
+    const entries = readJson<Record<string, LibraryEntry>>(ENTRIES(uid)) ?? {};
+    // The durable queue is also a recovery log if the subsequent local
+    // snapshot write failed (for example when device storage filled up).
+    for (const op of readQueue(uid)) {
+      if (op.type === 'entry.upsert') {
+        const entry = op.payload as LibraryEntry;
+        if (!entries[String(entry.anilistId)] || entries[String(entry.anilistId)]!.updatedAt <= entry.updatedAt) entries[String(entry.anilistId)] = entry;
+      } else if (op.type === 'entry.delete') {
+        const key = String(op.payload);
+        if (!entries[key] || entries[key]!.updatedAt <= (op.version ?? op.queuedAt)) delete entries[key];
+      }
+    }
+    return entries;
   },
 
   writeEntries(uid: string, entries: Record<string, LibraryEntry>): void {
@@ -31,7 +44,12 @@ export const localStore = {
   },
 
   readLists(uid: string): CustomList[] {
-    return readJson<CustomList[]>(LISTS(uid)) ?? [];
+    const lists = new Map((readJson<CustomList[]>(LISTS(uid)) ?? []).map((list) => [list.id, list]));
+    for (const op of readQueue(uid)) {
+      if (op.type === 'list.upsert') { const list = op.payload as CustomList; lists.set(list.id, list); }
+      else if (op.type === 'list.delete') lists.delete(op.payload as string);
+    }
+    return Array.from(lists.values());
   },
 
   writeLists(uid: string, lists: CustomList[]): void {
@@ -55,9 +73,7 @@ export const localStore = {
   },
 
   /**
-   * Anonymous to named upgrade (§5). Firebase keeps the same uid when an
-   * anonymous account is linked, so this is only needed when the user signs in
-   * to a *different* existing account and chooses to keep local data.
+   * Guest-to-account upgrade: copy local data and enqueue it for cloud sync.
    */
   migrate(fromUid: string, toUid: string, options: { overwrite: boolean }): void {
     const source = localStore.readEntries(fromUid);
@@ -67,6 +83,9 @@ export const localStore = {
       // Last write wins on a per-entry basis so nothing silently regresses.
       if (!existing || existing.updatedAt < entry.updatedAt) target[id] = entry;
     }
+    for (const entry of Object.values(target)) {
+      enqueue(toUid, { key: `entry:${entry.anilistId}`, type: 'entry.upsert', payload: entry, origin: 'anilist' });
+    }
     localStore.writeEntries(toUid, target);
 
     const lists = localStore.readLists(fromUid);
@@ -74,11 +93,13 @@ export const localStore = {
       const existing = options.overwrite ? [] : localStore.readLists(toUid);
       const byId = new Map(existing.map((list) => [list.id, list]));
       for (const list of lists) if (!byId.has(list.id)) byId.set(list.id, list);
+      for (const list of byId.values()) enqueue(toUid, { key: `list:${list.id}`, type: 'list.upsert', payload: list });
       localStore.writeLists(toUid, Array.from(byId.values()));
     }
   },
 
   clear(uid: string): void {
+    clearQueue(uid);
     kv().delete(ENTRIES(uid));
     kv().delete(LISTS(uid));
     kv().delete(SETTINGS(uid));

@@ -16,8 +16,12 @@ interface GraphQLResponse<T> {
 
 /** OAuth access token for the linked AniList account, injected by the auth layer. */
 let accessToken: string | null = null;
+let tokenVersion = 0;
+export function getAniListTokenVersion(): number { return tokenVersion; }
 
 export function setAniListToken(token: string | null): void {
+  if (token !== null && accessToken === token) return;
+  tokenVersion += 1;
   accessToken = token;
 }
 

@@ -13,7 +13,7 @@ import {
   type MediaType,
 } from '@/data/models';
 import { syncNow } from '@/data/sync';
-import { enqueue, pendingCount, type SyncOp } from '@/data/syncQueue';
+import { enqueue, pendingCount, readQueue, type SyncOp } from '@/data/syncQueue';
 import { mediaTypeOf, toSnapshot } from '@/data/transforms';
 
 /**
@@ -78,6 +78,8 @@ const NO_OP: ProgressOutcome = {
   rewatchCompleted: false,
 };
 
+let sessionGeneration = 0;
+
 export const useLibraryStore = create<LibraryState>((set, get) => {
   function persist(entries: Record<string, LibraryEntry>): void {
     const uid = get().uid;
@@ -111,11 +113,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
   }
 
   function commit(entry: LibraryEntry, origin: SyncOrigin = 'local'): LibraryEntry {
-    const stamped = { ...entry, updatedAt: Date.now() };
+    const stamped = { ...entry, updatedAt: Math.max(Date.now(), (get().entries[String(entry.anilistId)]?.updatedAt ?? 0) + 1) };
     const entries = { ...get().entries, [String(stamped.anilistId)]: stamped };
-    set({ entries });
-    persist(entries);
     queueEntry(stamped, origin);
+    persist(entries);
+    set({ entries });
     return stamped;
   }
 
@@ -130,6 +132,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
     conflictWarning: null,
 
     hydrate: (uid) => {
+      if (get().uid !== uid) sessionGeneration += 1;
       const meta = localStore.readMeta(uid);
       set({
         uid,
@@ -138,10 +141,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
         pending: pendingCount(uid),
         lastSyncedAt: meta.lastSyncedAt,
         hydrated: true,
+        syncing: false,
       });
     },
 
-    clearSession: () =>
+    clearSession: () => {
+      sessionGeneration += 1;
       set({
         uid: null,
         entries: {},
@@ -150,15 +155,21 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
         hydrated: false,
         lastSyncedAt: null,
         conflictWarning: null,
-      }),
+        syncing: false,
+      });
+    },
 
     sync: async () => {
       const uid = get().uid;
       if (!uid || get().syncing) return;
 
+      const initialRevisions = new Set(readQueue(uid).map((op) => op.revision));
+      const generation = sessionGeneration;
+      const current = () => get().uid === uid && sessionGeneration === generation;
       set({ syncing: true });
       try {
-        const result = await syncNow(uid);
+        const result = await syncNow(uid, current);
+        if (!current()) return;
         const meta = localStore.readMeta(uid);
         set({
           entries: localStore.readEntries(uid),
@@ -170,8 +181,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
               ? 'Some entries were updated on another device and replaced your local changes.'
               : get().conflictWarning,
         });
+      } catch (error) {
+        if (current()) set({ conflictWarning: error instanceof Error ? error.message : 'Sync failed. Your changes are queued for retry.' });
       } finally {
-        set({ syncing: false });
+        if (current()) {
+          set({ syncing: false });
+          // A debounce may have fired while this pass was still uploading.
+          if (!uid.startsWith('local-') && readQueue(uid).some((op) => !initialRevisions.has(op.revision))) autoSync();
+        }
       }
     },
 
@@ -199,10 +216,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
 
       const entries = { ...get().entries };
       delete entries[String(anilistId)];
-      set({ entries });
+      queueOp({ key: `entry:${anilistId}`, type: 'entry.delete', payload: anilistId, version: Math.max(Date.now(), entry.updatedAt + 1) });
       persist(entries);
-
-      queueOp({ key: `entry:${anilistId}`, type: 'entry.delete', payload: anilistId });
+      set({ entries });
       return entry;
     },
 
@@ -252,31 +268,32 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
         id: `list-${Date.now().toString(36)}`,
         name: name.trim(),
         order: get().lists.length,
+        updatedAt: Date.now(),
         createdAt: Date.now(),
       };
       const lists = [...get().lists, list];
-      set({ lists });
-      persistLists(lists);
-
       queueOp({ key: `list:${list.id}`, type: 'list.upsert', payload: list });
+      persistLists(lists);
+      set({ lists });
       return list;
     },
 
     renameList: (id, name) => {
       const lists = get().lists.map((list) =>
-        list.id === id ? { ...list, name: name.trim() } : list,
+        list.id === id ? { ...list, name: name.trim(), updatedAt: Math.max(Date.now(), (list.updatedAt ?? list.createdAt) + 1) } : list,
       );
-      set({ lists });
-      persistLists(lists);
-
       const updated = lists.find((list) => list.id === id);
       if (updated) queueOp({ key: `list:${id}`, type: 'list.upsert', payload: updated });
+      persistLists(lists);
+      set({ lists });
     },
 
     deleteList: (id) => {
+      const previousList = get().lists.find((list) => list.id === id);
       const lists = get().lists.filter((list) => list.id !== id);
-      set({ lists });
+      queueOp({ key: `list:${id}`, type: 'list.delete', payload: id, version: Math.max(Date.now(), (previousList?.updatedAt ?? previousList?.createdAt ?? 0) + 1) });
       persistLists(lists);
+      set({ lists });
 
       // Drop the membership from every entry so nothing points at a dead list.
       const entries = { ...get().entries };
@@ -286,18 +303,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
           entries[key] = {
             ...entry,
             customListIds: entry.customListIds.filter((listId) => listId !== id),
-            updatedAt: Date.now(),
+            updatedAt: Math.max(Date.now(), entry.updatedAt + 1),
           };
           changed = true;
           queueEntry(entries[key] as LibraryEntry);
         }
       }
       if (changed) {
-        set({ entries });
         persist(entries);
+        set({ entries });
       }
 
-      queueOp({ key: `list:${id}`, type: 'list.delete', payload: id });
     },
 
     toggleListMembership: (anilistId, listId) => {

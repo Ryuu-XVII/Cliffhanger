@@ -80,8 +80,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
             marginBottom: spacing.xl,
           }}
         >
-          Your library is safe - it is stored on this device and nothing was lost. The report has
-          been logged so this can be fixed.
+          The app encountered a problem. Try again. If saving failed, check your device storage
+          before making more changes.
         </Text>
 
         {__DEV__ ? (

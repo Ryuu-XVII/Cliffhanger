@@ -46,6 +46,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
     "@react-native/jest-preset": "^0.86.2",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^14.0.1",
@@ -68,7 +69,10 @@
     "typecheck": "tsc --noEmit",
     "check:live": "node scripts/live-check.mjs",
     "fetch:google-services": "node scripts/fetch-google-services.mjs",
-    "smoke:android": "bash scripts/smoke-android.sh"
+    "smoke:android": "bash scripts/smoke-android.sh",
+    "test:database": "node scripts/test-database.mjs",
+    "test:notifications": "node scripts/test-notifications.mjs",
+    "check": "npm run typecheck && npm test -- --runInBand && npm run test:database && npm run test:notifications"
   },
   "private": true,
   "jest": {

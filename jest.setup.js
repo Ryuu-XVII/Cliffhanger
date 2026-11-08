@@ -1,10 +1,13 @@
 /* eslint-env jest */
 
-// react-native-mmkv is a Nitro module with no JS fallback in the test runtime;
-// the kv layer already degrades to memory, so the mock just makes that explicit.
-jest.mock('react-native-mmkv', () => {
-  throw new Error('MMKV unavailable in tests');
-});
+// Use a synchronous MMKV test double; production fallback persistence has its own tests.
+jest.mock('react-native-mmkv', () => ({
+  createMMKV: () => {
+    const values = new Map();
+    return { getString: (key) => values.get(key), set: (key, value) => values.set(key, value),
+      remove: (key) => values.delete(key), getAllKeys: () => Array.from(values.keys()), clearAll: () => values.clear() };
+  },
+}));
 
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => Promise.resolve()),

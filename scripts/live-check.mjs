@@ -34,24 +34,29 @@ try {
   uid = signedIn.data.user.id;
   throwaway = !email;
   record('email account sign-up works', Boolean(uid), uid);
-  const entry = { user_id: uid, anilist_id: 21, data: { anilistId: 21, status: 'WATCHING', progress: 3 }, updated_at: Date.now() };
-  let result = await supabase.from('entries').upsert(entry);
+  const testId = 2147483000;
+  const prior = await supabase.from('entries').select('anilist_id').eq('user_id', uid).eq('anilist_id', testId);
+  if (prior.error || prior.data?.length) throw new Error('Smoke-test entry already exists; use a dedicated empty test account');
+  const entry = { user_id: uid, anilist_id: testId, data: { anilistId: testId, status: 'WATCHING', progress: 3 }, updated_at: Date.now() };
+  let result = await supabase.rpc('apply_library_change', { expected_uid: uid, kind: 'entry', target_id: String(testId),
+    payload: { ...entry.data, updatedAt: entry.updated_at }, changed_at: entry.updated_at, is_deleted: false });
   record('can write own entry', !result.error, result.error?.message);
-  result = await supabase.from('entries').select('data').eq('user_id', uid).eq('anilist_id', 21).single();
+  result = await supabase.from('entries').select('data').eq('user_id', uid).eq('anilist_id', testId).single();
   record('can read own entry', !result.error && result.data?.data?.progress === 3, result.error?.message);
   await expectDenied('rejects another user entry', () => supabase.from('entries').insert({ ...entry, user_id: '00000000-0000-0000-0000-000000000000', anilist_id: 22 }));
   await expectDenied('rejects client notification receipt', () => supabase.from('notification_receipts').insert({ id: 'client-test', user_id: uid, anilist_id: 21, episode: 1 }));
   if (throwaway) {
-    result = await supabase.rpc('delete_my_account', { target_user_id: uid });
+    result = await supabase.rpc('delete_my_account');
     record('account deletion RPC works', !result.error, result.error?.message);
     uid = undefined;
   } else {
+    await supabase.rpc('apply_library_change', { expected_uid: uid, kind: 'entry', target_id: String(testId), payload: {}, changed_at: Date.now() + 1, is_deleted: true });
     record('account deletion RPC works', true, 'skipped for configured test account');
   }
 } catch (error) {
   record('unexpected failure', false, error?.message ?? String(error));
 } finally {
-  if (uid && throwaway) await supabase.rpc('delete_my_account', { target_user_id: uid });
+  if (uid && throwaway) await supabase.rpc('delete_my_account');
   await supabase.auth.signOut();
 }
 const failed = results.filter((result) => !result.passed).length;
